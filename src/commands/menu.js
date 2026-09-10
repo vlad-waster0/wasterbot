@@ -636,8 +636,22 @@ menu = menu
     minute: '2-digit'
   }));
 
-return reply(menu);
-    await reply(texto)
+if (menuPersonalizado) {
+  let menu = menuPersonalizado;
+
+  const nomeUsuario = message.pushName || 'usuário';
+
+  menu = menu
+    .replace(/Tiago/g, nomeUsuario)
+    .replace(/[0-9]{2}:[0-9]{2}/g, new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }));
+
+  return reply(menu);
+}
+
+return reply(texto);
   },
 }
 

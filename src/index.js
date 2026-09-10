@@ -23,10 +23,8 @@ import { iniciarAgendadorHorarios } from './horarioGrupo.js'
 
 const groupMetadataCache = new Map()
 async function startBot() {
-  await getDatabase()
-  const { state, saveCreds } = await useMultiFileAuthState('./auth_info')
-  const { version } = await fetchLatestBaileysVersion()
-  
+const { state, saveCreds } = await useMultiFileAuthState('./auth_info_tiago')
+const { version } = await fetchLatestBaileysVersion()  
 const MAPAS_FONTE = {
   negrito: {
     upper: '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙',
