@@ -1,0 +1,495 @@
+import { downloadContentFromMessage } from '@whiskeysockets/baileys'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { config } from '../config.js'
+import { getDatabase, setPrefix } from '../database.js'
+
+async function ehDonoPrincipal(jid) {
+  return config.ownerNumbers.includes(jid.split('@')[0])
+}
+
+async function ehDonoBot(jid) {
+  if (await ehDonoPrincipal(jid)) return true
+
+  const db = await getDatabase()
+  return Boolean(db.data.users[jid]?.botOwner)
+}
+
+async function ehPremiumOuDono(jid) {
+  if (await ehDonoBot(jid)) return true
+
+  const db = await getDatabase()
+  return Boolean(db.data.users[jid]?.premium)
+}
+
+async function darPermissaoDono({ reply, sender, message, sock, nivel }) {
+  if (!(await ehDonoPrincipal(sender))) {
+    return reply('❌ Apenas o dono principal pode conceder permissão de dono.')
+  }
+
+  const groupJid = message.key.remoteJid
+
+  if (!groupJid?.endsWith('@g.us')) {
+    return reply('❌ Este comando só pode ser usado em grupos.')
+  }
+
+  const target =
+    message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+
+  if (!target) {
+    return reply(`❌ Marque o ADM que receberá a permissão ${nivel}.`)
+  }
+
+  const metadata = await sock.groupMetadata(groupJid)
+
+  const participante = (metadata.participants || []).find(
+    p => p.id === target ||
+         p.lid === target ||
+         p.phoneNumber === target
+  )
+
+  if (
+    participante?.admin !== 'admin' &&
+    participante?.admin !== 'superadmin'
+  ) {
+    return reply(
+      '❌ A pessoa precisa ser administradora do grupo para receber a permissão de dono.'
+    )
+  }
+
+  const targetReal = participante?.phoneNumber || target
+
+  const db = await getDatabase()
+  const usuario = db.data.users[targetReal] || {}
+
+  db.data.users[targetReal] = {
+    ...usuario,
+    jid: targetReal,
+    botOwner: true,
+    ownerLevel: nivel,
+  }
+
+  await db.write()
+
+  return reply(
+    `👑 *PERMISSÃO DE DONO CONCEDIDA*
+
+👤 Usuário: @${targetReal.split('@')[0]}
+🔐 Permissão: *${nivel}*
+
+A pessoa agora pode utilizar as funções de dono do bot.
+
+👑 Você continua sendo o *dono principal* do bot.`
+  )
+}
+
+async function configurarMenu({ reply, sender, args }) {
+  if (!(await ehPremiumOuDono(sender))) {
+    return reply(
+      '❌ Apenas o dono ou usuários Premium podem personalizar o menu.'
+    )
+  }
+
+  const groupJid = data.message?.key?.remoteJid
+
+  if (!groupJid?.endsWith('@g.us')) {
+    return reply('❌ A personalização do menu só pode ser feita dentro de um grupo.')
+  }
+
+  const db = await getDatabase()
+  db.data.groups[groupJid] ||= {}
+  db.data.groups[groupJid].menu ||= {}
+  const menu = db.data.groups[groupJid].menu
+
+  const opcao = args.shift()?.toLowerCase()
+
+  if (!opcao) {
+    return reply(
+      `⚙️ *PERSONALIZAÇÃO DO MENU*
+
+Use:
+
+${config.prefix}menupersonalizar segue texto
+${config.prefix}menupersonalizar site texto
+${config.prefix}menupersonalizar emoji texto
+ ▸ ${p}menupersonalizar segueemoji emoji
+ ▸ ${p}menupersonalizar siteemoji emoji
+
+${config.prefix}menupersonalizar remover segue
+${config.prefix}menupersonalizar remover site
+
+Exemplo:
+${config.prefix}menupersonalizar segue Instagram: @seuperfil`
+    )
+  }
+
+  if (opcao === 'remover') {
+    const campo = args.shift()?.toLowerCase()
+
+    if (!['segue', 'site'].includes(campo)) {
+      return reply('❌ Campo inválido. Use: segue ou site.')
+    }
+
+    menu[campo] = ''
+
+    await db.write()
+
+    return reply(
+      `✅ *ALTERAÇÃO REALIZADA*
+
+O campo *${campo}* foi removido do menu.`
+    )
+  }
+
+  if (!['segue', 'site', 'emoji'].includes(opcao)) {
+    return reply(
+      '❌ Opção inválida. Use: segue, site, emoji ou remover.'
+    )
+  }
+
+  const texto = args.join(' ').trim()
+
+  if (!texto) {
+    return reply('❌ Informe o novo texto.')
+  }
+
+  menu[opcao] = texto
+
+  await db.write()
+
+  return reply(
+    `✅ *MENU ATUALIZADO*
+
+Campo: *${opcao}*
+
+Novo conteúdo:
+${texto}`
+  )
+}
+
+
+const alterarNomeCommand = {
+  name: 'alterarnome',
+  aliases: ['mudarnome', 'nomegrupo'],
+  description: 'Altera o nome do grupo.',
+  async execute({ sock, message, args, reply, sender }) {
+    const groupJid = message.key.remoteJid
+
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    if (!(await ehDonoPrincipal(sender)) && !(await ehBotOwner(sender))) {
+      return reply('❌ Apenas o dono do bot pode alterar o nome do grupo.')
+    }
+
+    const novoNome = String(args?.join(' ') || '').trim()
+
+    if (!novoNome) {
+      return reply('❌ Informe o novo nome do grupo.\n\nExemplo: !alterarnome WASTER GROUP')
+    }
+
+    if (novoNome.length > 100) {
+      return reply('❌ O nome do grupo pode ter no máximo 100 caracteres.')
+    }
+
+    try {
+      await sock.groupUpdateSubject(groupJid, novoNome)
+
+      return reply(
+        `✅ *NOME DO GRUPO ALTERADO!*\n\n` +
+        `🏷️ Novo nome: *${novoNome}*`
+      )
+    } catch (error) {
+      console.error('ERRO AO ALTERAR NOME DO GRUPO:', error)
+      return reply(
+        '❌ Não consegui alterar o nome do grupo.\n\n' +
+        'Verifique se o bot é administrador do grupo.'
+      )
+    }
+  },
+}
+
+const alterarNomeBotCommand = {
+  name: 'alterarnomebot',
+  aliases: ['nomebot', 'mudarnomebot'],
+  description: 'Altera o nome exibido pelo bot.',
+  async execute({ args, reply, sender }) {
+    if (!(await ehDonoPrincipal(sender)) && !(await ehBotOwner(sender))) {
+      return reply('❌ Apenas o dono do bot pode alterar o nome do bot.')
+    }
+
+    const novoNome = String(args?.join(' ') || '').trim()
+
+    if (!novoNome) {
+      return reply(
+        '❌ Informe o novo nome do bot.\n\n' +
+        'Exemplo: !alterarnomebot WASTER BLACK'
+      )
+    }
+
+    if (novoNome.length > 40) {
+      return reply('❌ O nome do bot pode ter no máximo 40 caracteres.')
+    }
+
+
+    return reply(
+      `✅ *NOME DO BOT ALTERADO!*\n\n` +
+      `🤖 Novo nome: *${novoNome}*\n\n` +
+      `📌 O novo nome será usado nos menus e mensagens que utilizam o nome do bot.`
+    )
+  },
+}
+
+export const ownerCommands = [
+  alterarNomeBotCommand,
+  alterarNomeCommand,
+{
+  name: 'alterarprefixo',
+  aliases: ['prefixo', 'mudarprefixo'],
+  description: 'Altera o prefixo dos comandos.',
+  async execute({ reply, sender, args }) {
+    if (!(await ehDonoPrincipal(sender))) {
+      return reply('❌ Apenas o dono principal pode alterar o prefixo.')
+    }
+
+    const novoPrefixo = String(args?.[0] || '').trim()
+
+    if (!novoPrefixo || novoPrefixo.length > 3) {
+      return reply('❌ Informe um prefixo de 1 a 3 caracteres.')
+    }
+
+    await setPrefix(novoPrefixo)
+    config.prefix = novoPrefixo
+
+    return reply(`✅ *PREFIXO ALTERADO!*
+
+Novo prefixo: *${novoPrefixo}*
+
+Agora os comandos devem ser usados com:
+${novoPrefixo}menu`)
+  },
+},
+  {
+    name: 'alterarfoto',
+    aliases: ['setfoto', 'fotobot'],
+    description: 'Altera a foto usada no menu.',
+
+    async execute({ reply, message, sender }) {
+      if (!(await ehPremiumOuDono(sender))) {
+        return reply(
+          '❌ Apenas o dono ou usuários Premium podem alterar a foto do menu.'
+        )
+      }
+
+      const groupJid = message?.key?.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ A foto do menu só pode ser alterada dentro de um grupo.')
+      }
+
+      const quoted =
+        message.message?.extendedTextMessage?.contextInfo?.quotedMessage
+
+      const imageMessage = quoted?.imageMessage
+
+      if (!imageMessage) {
+        return reply('❌ Responda a uma foto com !alterarfoto.')
+      }
+
+      try {
+        const stream = await downloadContentFromMessage(
+          imageMessage,
+          'image'
+        )
+
+        const chunks = []
+
+        for await (const chunk of stream) {
+          chunks.push(chunk)
+        }
+
+        const buffer = Buffer.concat(chunks)
+
+        await mkdir('data', { recursive: true })
+        await writeFile('data/menu.jpg', buffer)
+
+        const db = await getDatabase()
+
+        db.data.groups[groupJid] ||= {}
+        db.data.groups[groupJid].menu ||= {}
+        db.data.groups[groupJid].menu.photo = 'data/menu.jpg'
+
+        await db.write()
+
+        return reply(
+          '✅ *FOTO DO MENU ALTERADA!*\n\nA foto respondida foi salva com sucesso.'
+        )
+      } catch (error) {
+        console.error('ERRO AO SALVAR FOTO:', error)
+
+        return reply(
+          '❌ Não consegui salvar a foto. Tente novamente.'
+        )
+      }
+    },
+  },
+
+  {
+    name: 'dono2',
+    aliases: ['dono'],
+    description: 'Concede permissão de dono nível 2.',
+
+    async execute(data) {
+      return darPermissaoDono({
+        ...data,
+        nivel: 'Dono 2',
+      })
+    },
+  },
+
+  {
+    name: 'dono3',
+    description: 'Concede permissão de dono nível 3.',
+
+    async execute(data) {
+      return darPermissaoDono({
+        ...data,
+        nivel: 'Dono 3',
+      })
+    },
+  },
+
+  {
+    name: 'menupersonalizar',
+    aliases: ['editarmenu', 'configmenu'],
+    description: 'Personaliza o menu principal.',
+
+    async execute(data) {
+      return configurarMenu(data)
+    },
+  },
+
+  {
+    name: 'darpremium',
+    aliases: ['addpremium'],
+    description: 'Concede Premium para um usuário.',
+
+    async execute({ reply, sender, message }) {
+      if (!(await ehDonoBot(sender))) {
+        return reply('❌ Apenas o dono pode conceder Premium.')
+      }
+
+      const target =
+        message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+
+      if (!target) {
+        return reply('❌ Marque o usuário que receberá Premium.')
+      }
+
+      const db = await getDatabase()
+      const usuario = db.data.users[target] || {}
+
+      db.data.users[target] = {
+        ...usuario,
+        jid: target,
+        premium: true,
+      }
+
+      await db.write()
+
+      return reply(
+        `💎 *PREMIUM CONCEDIDO*
+
+👤 Usuário: @${target.split('@')[0]}
+💎 Status: *PREMIUM ATIVO*`
+      )
+    },
+  },
+
+  {
+    name: 'removerpremium',
+    aliases: ['delpremium'],
+    description: 'Remove Premium de um usuário.',
+
+    async execute({ reply, sender, message }) {
+      if (!(await ehDonoBot(sender))) {
+        return reply('❌ Apenas o dono pode remover Premium.')
+      }
+
+      const target =
+        message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+
+      if (!target) {
+        return reply('❌ Marque o usuário que perderá o Premium.')
+      }
+
+      const db = await getDatabase()
+
+      if (db.data.users[target]) {
+        db.data.users[target].premium = false
+      }
+
+      await db.write()
+
+      return reply(
+        `❌ *PREMIUM REMOVIDO*
+
+👤 Usuário: @${target.split('@')[0]}
+💎 Status: *PREMIUM INATIVO*`
+      )
+    },
+  },
+
+  {
+    name: 'menudono',
+    aliases: ['donobot'],
+    description: 'Exibe o menu de dono.',
+
+    async execute({ reply, sender }) {
+      if (!(await ehDonoBot(sender))) {
+        return reply('❌ Você não possui permissão de dono.')
+      }
+
+      const p = config.prefix
+
+      return reply(
+        `╭━━━━━━「 👑 DONO 」━━━━━━╮
+
+👑 *ADMINISTRAÇÃO DO BOT*
+
+💎 *PREMIUM*
+▸ ${p}darpremium @usuário
+▸ ${p}removerpremium @usuário
+
+👑 *PERMISSÕES DE DONO*
+▸ ${p}dono2 @ADM
+▸ ${p}dono3 @ADM
+
+🎮 *FREE FIRE*
+▸ ${p}patenteff @pessoa
+▸ ${p}addpatenteff nome da patente (respondendo à imagem)
+▸ ${p}configpatenteff
+
+⚙️ *CONFIGURAÇÕES DO BOT*\n ▸ ${p}alterarprefixo novo\n 🎨 *PERSONALIZAÇÃO DO MENU*
+ 📁 *GIFS E IMAGENS*\n ▸ ${p}alterargif nome\n ▸ ${p}listagifs\n ▸ ${p}removergif nome
+▸ ${p}menupersonalizar
+▸ ${p}menupersonalizar segue texto
+▸ ${p}menupersonalizar site texto
+▸ ${p}menupersonalizar emoji texto
+ ▸ ${p}menupersonalizar segueemoji emoji
+ ▸ ${p}menupersonalizar siteemoji emoji
+▸ ${p}menupersonalizar remover segue
+▸ ${p}menupersonalizar remover site
+
+🤖 *BOT*
+▸ ${p}alterarnome
+▸ ${p}alterarfoto
+
+🤖 *ALUGUEL*
+▸ ${p}alugarbot
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯`
+      )
+    },
+  },
+]

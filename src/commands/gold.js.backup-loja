@@ -1,0 +1,381 @@
+import { getDatabase, saveUser } from '../database.js'
+
+function hoje() {
+  return new Date().toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+  })
+}
+
+async function mencionado(message, sock) {
+  const contexto = message.message?.extendedTextMessage?.contextInfo
+  const target = contexto?.mentionedJid?.[0] || null
+
+  if (!target) return null
+
+  if (target.endsWith('@lid') && message.key?.remoteJid?.endsWith('@g.us')) {
+    try {
+      const metadata = await sock.groupMetadata(message.key.remoteJid)
+      const participante = (metadata.participants || []).find(
+        p => p.id === target || p.lid === target
+      )
+
+      if (participante?.phoneNumber) {
+        return participante.phoneNumber
+      }
+    } catch (error) {
+      console.error('ERRO AO RESOLVER LID DO GOLD:', error)
+    }
+  }
+
+  return target
+}
+
+function normalizarJid(jid) {
+  if (!jid) return null
+  return String(jid).split(':')[0]
+}
+
+export const goldCommands = [
+  {
+    name: 'gold',
+    aliases: ['saldo', 'moedas'],
+    description: 'Mostra seu saldo de Gold.',
+
+    async execute({ reply, sender, message, sock }) {
+      const db = await getDatabase()
+      const target = (await mencionado(message, sock)) || sender
+      const user = db.data.users[target] || {}
+      const gold = Number(user.gold || 0)
+      const nome = target.split('@')[0]
+      const proprio = target === sender
+
+      return reply(`💰 *${proprio ? 'SEU GOLD' : 'GOLD DO USUÁRIO'}*
+
+👤 Usuário: @${nome}
+🪙 Gold: *${gold}*`)
+    },
+  },
+
+  {
+    name: 'doargold',
+    aliases: ['doar', 'doarmoedas'],
+    description: 'Doa Gold para outro usuário.',
+
+    async execute({ reply, sender, args, message, sock }) {
+      const target = await mencionado(message, sock)
+      const quantidade = Number(args.find(a => /^\d+$/.test(a)) || 0)
+
+      if (!target) {
+        return reply('❌ Marque o usuário que receberá o Gold.')
+      }
+
+      if (!Number.isInteger(quantidade) || quantidade <= 0) {
+        return reply('❌ Informe uma quantidade válida.\n\nExemplo: !doargold @usuário 50')
+      }
+
+      if (target === sender) {
+        return reply('❌ Você não pode doar Gold para você mesmo.')
+      }
+
+      const db = await getDatabase()
+      const remetente = db.data.users[sender] || {}
+      const destinatario = db.data.users[target] || {}
+
+      const saldo = Number(remetente.gold || 0)
+
+      if (saldo < quantidade) {
+        return reply(`❌ Você não possui Gold suficiente.\n\n💰 Seu saldo: ${saldo} Gold`)
+      }
+
+      remetente.gold = saldo - quantidade
+      destinatario.gold = Number(destinatario.gold || 0) + quantidade
+
+      db.data.users[sender] = { ...remetente, jid: sender }
+      db.data.users[target] = { ...destinatario, jid: target }
+
+      await db.write()
+
+      return reply(`✅ *DOAÇÃO REALIZADA*
+
+💰 Você doou *${quantidade} Gold*
+👤 Para: @${target.split('@')[0]}
+
+💰 Seu novo saldo: *${remetente.gold} Gold*`)
+    },
+  },
+
+  {
+    name: 'roubargold',
+    aliases: ['roubar', 'roubarmoedas'],
+    description: 'Tenta roubar Gold de outro usuário.',
+
+    async execute({ reply, sender, message, sock }) {
+      const target = await mencionado(message, sock)
+
+      if (!target) {
+        return reply('❌ Marque o usuário que você quer roubar.')
+      }
+
+      if (target === sender) {
+        return reply('❌ Você não pode roubar de você mesmo.')
+      }
+
+      const db = await getDatabase()
+      const ladrao = db.data.users[sender] || {}
+      const vitima = db.data.users[target] || {}
+
+      const agora = Date.now()
+      const periodo = 24 * 60 * 60 * 1000
+
+      const roubosRecentes = (ladrao.goldRobberyHistory || [])
+        .filter(timestamp => agora - timestamp < periodo)
+
+      if (roubosRecentes.length >= 5) {
+        return reply('🚨 *LIMITE DE ROUBOS ATINGIDO*\n\nVocê já realizou 5 roubos nas últimas 24 horas.\n\n⏳ Tente novamente depois.')
+      }
+
+      const saldoVitima = Number(vitima.gold || 0)
+
+      if (saldoVitima <= 0) {
+        roubosRecentes.push(agora)
+        ladrao.goldRobberyHistory = roubosRecentes
+        db.data.users[sender] = { ...ladrao, jid: sender }
+        await db.write()
+
+        return reply(`😅 @${target.split('@')[0]} não possui Gold para roubar.`)
+      }
+
+      // 40% de chance de falha: aproximadamente 2 falhas a cada 5 tentativas.
+      if (Math.random() < 0.4) {
+        const perda = Math.min(1, Number(ladrao.gold || 0))
+
+        ladrao.gold = Math.max(0, Number(ladrao.gold || 0) - perda)
+        roubosRecentes.push(agora)
+        ladrao.goldRobberyHistory = roubosRecentes
+
+        db.data.users[sender] = { ...ladrao, jid: sender }
+        await db.write()
+
+        return reply(
+          `💥 *ROUBO FALHOU!*\\n\\n` +
+          `🎯 Você tentou roubar @${target.split('@')[0]}\\n` +
+          `💸 Você perdeu *${perda} Gold* pelo fracasso.\\n\\n` +
+          `💰 Seu saldo agora: *${ladrao.gold} Gold*\\n` +
+          `⚠️ A tentativa contou no limite de 5 roubos a cada 24 horas.`
+        )
+      }
+
+      const maxRoubo = Math.min(50, saldoVitima)
+      const quantidade = Math.max(1, Math.floor(Math.random() * maxRoubo) + 1)
+
+      vitima.gold = saldoVitima - quantidade
+      ladrao.gold = Number(ladrao.gold || 0) + quantidade
+
+      roubosRecentes.push(agora)
+      ladrao.goldRobberyHistory = roubosRecentes
+
+      db.data.users[sender] = { ...ladrao, jid: sender }
+      db.data.users[target] = { ...vitima, jid: target }
+
+      await db.write()
+
+      return reply(`🦹 *ROUBO REALIZADO!*
+
+🎯 Vítima: @${target.split('@')[0]}
+💰 Gold roubado: *${quantidade}*
+
+😈 Seu saldo agora: *${ladrao.gold} Gold*
+
+⚠️ Você pode realizar no máximo *5 roubos a cada 24 horas*.`)
+    },
+  },
+]
+
+export const adminGoldCommands = [
+  {
+    name: 'addgold',
+    aliases: ['darouro', 'dargold'],
+    description: 'Adiciona Gold a um usuário.',
+
+    async execute({ reply, sender, message, args, sock }) {
+      const { isGroupAdmin } = await import('./admin.js')
+      const groupJid = message.key.remoteJid
+
+      if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+        return reply('❌ Este comando é exclusivo para administradores.')
+      }
+
+      const target = await mencionado(message, sock)
+      const quantidade = Number(args.find(a => /^\d+$/.test(a)) || 0)
+
+      if (!target) {
+        return reply('❌ Marque o usuário que receberá o Gold.')
+      }
+
+      if (!Number.isInteger(quantidade) || quantidade <= 0) {
+        return reply('❌ Informe uma quantidade válida.\n\nExemplo: !addgold @usuário 1000')
+      }
+
+      const db = await getDatabase()
+      const user = db.data.users[target] || {}
+      const saldoAnterior = Number(user.gold || 0)
+
+      user.gold = saldoAnterior + quantidade
+
+      db.data.users[target] = {
+        ...user,
+        jid: target,
+      }
+
+      await db.write()
+
+      return reply(
+        `✅ *GOLD ADICIONADO!*\n\n` +
+        `👤 Usuário: @${target.split('@')[0]}\n` +
+        `🪙 Gold adicionado: *${quantidade}*\n` +
+        `💰 Novo saldo: *${user.gold} Gold*`
+      )
+    },
+  },
+]
+
+adminGoldCommands.push({
+  name: 'tirargold',
+  aliases: ['removergold', 'delgold'],
+  description: 'Retira Gold de um usuário.',
+
+  async execute({ reply, sender, message, args, sock }) {
+    const { isGroupAdmin } = await import('./admin.js')
+    const groupJid = message.key.remoteJid
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Este comando é exclusivo para administradores.')
+    }
+
+    const target = mencionado(message)
+    const quantidade = Number(args.find(a => /^\d+$/.test(a)) || 0)
+
+    if (!target) {
+      return reply('❌ Marque o usuário que perderá o Gold.')
+    }
+
+    if (!Number.isInteger(quantidade) || quantidade <= 0) {
+      return reply('❌ Informe uma quantidade válida.\n\nExemplo: !tirargold @usuário 500')
+    }
+
+    const db = await getDatabase()
+    const user = db.data.users[target] || {}
+    const saldoAnterior = Number(user.gold || 0)
+
+    user.gold = Math.max(0, saldoAnterior - quantidade)
+
+    db.data.users[target] = {
+      ...user,
+      jid: target,
+    }
+
+    await db.write()
+
+    return reply(
+      `💸 *GOLD RETIRADO!*\n\n` +
+      `👤 Usuário: @${target.split('@')[0]}\n` +
+      `🪙 Gold retirado: *${quantidade}*\n` +
+      `💰 Novo saldo: *${user.gold} Gold*`
+    )
+  },
+})
+
+adminGoldCommands.push({
+  name: 'setgold',
+  aliases: ['definirg​old', 'configgold'],
+  description: 'Define exatamente o saldo de Gold de um usuário.',
+
+  async execute({ reply, sender, message, args, sock }) {
+    const { isGroupAdmin } = await import('./admin.js')
+    const groupJid = message.key.remoteJid
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Este comando é exclusivo para administradores.')
+    }
+
+    const target = mencionado(message)
+    const quantidade = Number(args.find(a => /^\d+$/.test(a)) || -1)
+
+    if (!target) {
+      return reply('❌ Marque o usuário que terá o saldo alterado.')
+    }
+
+    if (!Number.isInteger(quantidade) || quantidade < 0) {
+      return reply('❌ Informe uma quantidade válida.\n\nExemplo: !setgold @usuário 5000')
+    }
+
+    const db = await getDatabase()
+    const user = db.data.users[target] || {}
+
+    user.gold = quantidade
+
+    db.data.users[target] = {
+      ...user,
+      jid: target,
+    }
+
+    await db.write()
+
+    return reply(
+      `🪙 *SALDO DE GOLD DEFINIDO!*\n\n` +
+      `👤 Usuário: @${target.split('@')[0]}\n` +
+      `💰 Novo saldo: *${quantidade} Gold*`
+    )
+  },
+})
+
+export async function darGoldDiario(jid) {
+  const db = await getDatabase()
+  const hojeAtual = hoje()
+  const user = db.data.users[jid] || {}
+
+  if (user.goldDailyDate === hojeAtual) return false
+
+  user.gold = Number(user.gold || 0) + 10
+  user.goldDailyDate = hojeAtual
+  db.data.users[jid] = { ...user, jid }
+
+  await db.write()
+  return true
+}
+
+export const menuGoldCommand = {
+  name: 'menugold',
+  aliases: ['goldmenu', 'menumoedas'],
+  description: 'Exibe o menu do sistema Gold.',
+  async execute({ reply }) {
+    return reply(`╭━━━━━━「 🪙 GOLD 」━━━━━━╮
+🪙 *SISTEMA DE GOLD*
+
+💰 *SEU GOLD*
+▸ !gold
+▸ !saldo
+
+👤 *CONSULTAR GOLD*
+▸ !gold @pessoa
+
+🏆 *RANKING*
+▸ !rankgold
+▸ !goldrank
+
+▸ !caracoroa quantidade
+
+🎁 *TRANSFERIR*
+▸ !doargold @pessoa quantidade
+
+🦹 *ROUBAR*
+▸ !roubargold @pessoa
+
+🛡️ *ADMINISTRAÇÃO*
+▸ !addgold @pessoa quantidade
+▸ !tirargold @pessoa quantidade
+▸ !setgold @pessoa quantidade
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯`)
+  },
+}

@@ -1,0 +1,96 @@
+import { config } from '../config.js'
+import { getDatabase } from '../database.js'
+import { isGroupAdmin } from './admin.js'
+
+export async function boasVindasAtiva(sock, groupJid) {
+  const db = await getDatabase()
+  return Boolean(db.data.groups[groupJid]?.welcome?.enabled)
+}
+
+export const welcomeCommands = [
+  {
+    name: 'ativarbemvindo',
+    description: 'Ativa as boas-vindas do grupo.',
+    async execute({ sock, message, sender, reply }) {
+      const groupJid = message.key.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+        return reply('❌ Apenas administradores podem ativar o bem-vindo.')
+      }
+
+      const db = await getDatabase()
+      db.data.groups[groupJid] ||= {}
+      db.data.groups[groupJid].welcome ||= {}
+      db.data.groups[groupJid].welcome.enabled = true
+      await db.write()
+
+      return reply('✅ *Bem-vindo ativado!*\n\nAgora vou enviar uma mensagem quando alguém entrar no grupo.')
+    },
+  },
+
+  {
+    name: 'desativarbemvindo',
+    description: 'Desativa as boas-vindas do grupo.',
+    async execute({ sock, message, sender, reply }) {
+      const groupJid = message.key.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+        return reply('❌ Apenas administradores podem desativar o bem-vindo.')
+      }
+
+      const db = await getDatabase()
+      db.data.groups[groupJid] ||= {}
+      db.data.groups[groupJid].welcome ||= {}
+      db.data.groups[groupJid].welcome.enabled = false
+      await db.write()
+
+      return reply('❌ *Bem-vindo desativado!*')
+    },
+  },
+
+  {
+    name: 'bemvindo',
+    aliases: ['configbemvindo'],
+    description: 'Mostra a configuração do bem-vindo.',
+    async execute({ sock, message, sender, reply }) {
+      const groupJid = message.key.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+        return reply('❌ Apenas administradores podem configurar o bem-vindo.')
+      }
+
+      const db = await getDatabase()
+      const welcome = db.data.groups[groupJid]?.welcome || {}
+      const status = welcome.enabled ? '🟢 ATIVADO' : '🔴 DESATIVADO'
+
+      return reply(
+        `╭━━━〔 👋 BEM-VINDO 〕━━━╮
+
+📌 *Status:* ${status}
+
+⚙️ Para ativar:
+▸ ${config.prefix}ativarbemvindo
+
+⚙️ Para desativar:
+▸ ${config.prefix}desativarbemvindo
+
+💬 Mensagem padrão:
+"Seja bem-vindo(a), @usuário! 👋"
+
+╰━━━━━━━━━━━━━━━━━━━━╯`
+      )
+    },
+  },
+]

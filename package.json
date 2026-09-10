@@ -1,0 +1,25 @@
+{
+  "name": "baileys-modular-whatsapp-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot modular de WhatsApp com Baileys, preparado para Termux.",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@img/sharp-wasm32": "^0.35.4",
+    "@whiskeysockets/baileys": "latest",
+    "axios": "^1.20.0",
+    "dotenv": "latest",
+    "lowdb": "latest",
+    "node-webpmux": "^3.2.1",
+    "pino": "latest",
+    "qrcode-terminal": "latest",
+    "sharp": "^0.35.4"
+  }
+}

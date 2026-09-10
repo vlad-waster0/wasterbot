@@ -1,0 +1,10 @@
+nohup: ignoring input
+
+> baileys-modular-whatsapp-bot@1.0.0 start
+> node src/index.js
+
+{"level":30,"time":1788785287852,"pid":15226,"hostname":"localhost","browser":["Mac OS","Chrome","14.4.1"],"helloMsg":{"clientHello":{"ephemeral":"ytZ5Lb3baf+tKQDokse2Bw3MLUToHfywFGPmGWAQyhc="}},"msg":"connected to WA"}
+{"level":30,"time":1788785288303,"pid":15226,"hostname":"localhost","node":{"username":"5521996546450","passive":true,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1043857760},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","pull":true,"lidDbMigrated":false},"msg":"logging in..."}
+{"level":30,"time":1788785292374,"pid":15226,"hostname":"localhost","trace":"Error: Connection Failure\n    at WebSocketClient.<anonymous> (file:///data/data/com.termux/files/home/baileys-modular-whatsapp-bot-main/bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:800:18)\n    at WebSocketClient.emit (node:events:509:20)\n    at file:///data/data/com.termux/files/home/baileys-modular-whatsapp-bot-main/bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:465:35\n    at processData (file:///data/data/com.termux/files/home/baileys-modular-whatsapp-bot-main/bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:126:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async Object.decodeFrame (file:///data/data/com.termux/files/home/baileys-modular-whatsapp-bot-main/bot/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:197:13)\n    at async WebSocketClient.onMessageReceived (file:///data/data/com.termux/files/home/baileys-modular-whatsapp-bot-main/bot/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:442:9)","msg":"connection errored"}
+CÓDIGO DE DESCONEXÃO: 401 ERRO: Connection Failure
+⚠️ Sessão encerrada/rejeitada pelo WhatsApp. Não vou iniciar outra conexão automaticamente.

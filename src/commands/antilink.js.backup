@@ -1,0 +1,80 @@
+import { getDatabase } from '../database.js'
+import { config } from '../config.js'
+import { isGroupAdmin } from './admin.js'
+
+const LINK_REGEX = /(?:https?:\/\/|www\.)\S+/i
+
+export const antilinkCommands = [
+  {
+    name: 'antilink',
+    aliases: ['anti-link'],
+    description: 'Ativa ou desativa o Anti-Link do grupo.',
+    async execute({ sock, message, args, reply, sender }) {
+      const groupJid = message.key.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+        return reply('❌ Apenas administradores do grupo podem configurar o Anti-Link.')
+      }
+
+      const db = await getDatabase()
+
+      db.data.groups[groupJid] ||= {}
+
+      const opcao = String(args[0] || '').toLowerCase()
+
+      if (!['on', 'off', 'ativar', 'desativar'].includes(opcao)) {
+        const ativo = db.data.groups[groupJid].antilink?.enabled === true
+
+        return reply(
+          `🔗 *ANTI-LINK*\n\n` +
+          `Status: ${ativo ? '🟢 ATIVADO' : '🔴 DESATIVADO'}\n\n` +
+          `Use:\n` +
+          `▸ !antilink on — ativar\n` +
+          `▸ !antilink off — desativar`
+        )
+      }
+
+      const ativar = opcao === 'on' || opcao === 'ativar'
+
+      db.data.groups[groupJid].antilink = {
+        enabled: ativar,
+      }
+
+      await db.write()
+
+      return reply(
+        ativar
+          ? '🔗 *ANTI-LINK ATIVADO!*\n\n🚫 Links enviados por membros serão removidos.'
+          : '🔗 *ANTI-LINK DESATIVADO!*\n\n✅ Links voltarão a ser permitidos.'
+      )
+    },
+  },
+]
+
+export async function deveBloquearLink(sock, groupJid, sender, message, text) {
+  if (!groupJid?.endsWith('@g.us')) return false
+
+  if (!LINK_REGEX.test(String(text || ''))) return false
+
+  // O dono principal nunca é bloqueado.
+  if (config.ownerNumbers.includes(sender?.split('@')[0])) {
+    return false
+  }
+
+  // Administradores do grupo nunca são bloqueados.
+  if (await isGroupAdmin(sock, groupJid, sender, message)) {
+    return false
+  }
+
+  try {
+    const db = await getDatabase()
+    return db.data.groups[groupJid]?.antilink?.enabled === true
+  } catch (error) {
+    console.error('ERRO AO VERIFICAR ANTI-LINK:', error)
+    return false
+  }
+}

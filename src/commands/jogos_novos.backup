@@ -1,0 +1,249 @@
+import { getDatabase, saveUser } from '../database.js'
+
+const partidas = new Map()
+
+const perguntas = {
+  quiz: [
+    { p: 'Qual é a capital do Brasil?', r: ['brasilia', 'brasília'] },
+    { p: 'Qual é o maior planeta do Sistema Solar?', r: ['jupiter', 'júpiter'] },
+    { p: 'Quantos lados tem um hexágono?', r: ['6', 'seis'] },
+    { p: 'Qual é o maior oceano da Terra?', r: ['pacifico', 'pacífico'] },
+    { p: 'Quem pintou a Mona Lisa?', r: ['leonardo da vinci'] },
+    { p: 'Qual é o planeta conhecido como planeta vermelho?', r: ['marte'] },
+    { p: 'Qual é o idioma oficial do Brasil?', r: ['portugues', 'português'] },
+    { p: 'Quantos dias tem um ano comum?', r: ['365'] },
+    { p: 'Qual é o maior país da América do Sul?', r: ['brasil'] },
+    { p: 'Qual é a capital da França?', r: ['paris'] },
+  ],
+
+  paises: [
+    { p: 'Qual é a capital do Brasil?', r: ['brasilia', 'brasília'] },
+    { p: 'Qual é a capital da Argentina?', r: ['buenos aires'] },
+    { p: 'Qual é a capital do Japão?', r: ['toquio', 'tóquio'] },
+    { p: 'Qual é a capital de Portugal?', r: ['lisboa'] },
+    { p: 'Qual é a capital da Itália?', r: ['roma'] },
+    { p: 'Qual é a capital dos Estados Unidos?', r: ['washington', 'washington dc'] },
+    { p: 'Qual país é conhecido pela Torre Eiffel?', r: ['franca', 'frança'] },
+    { p: 'Qual país tem formato aproximado de uma bota?', r: ['italia', 'itália'] },
+  ],
+
+  estados: [
+    { p: 'Qual é a capital de Minas Gerais?', r: ['belo horizonte'] },
+    { p: 'Qual é a capital de São Paulo?', r: ['sao paulo', 'são paulo'] },
+    { p: 'Qual é a capital da Bahia?', r: ['salvador'] },
+    { p: 'Qual é a capital do Paraná?', r: ['curitiba'] },
+    { p: 'Qual é a capital de Pernambuco?', r: ['recife'] },
+    { p: 'Qual é a capital do Ceará?', r: ['fortaleza'] },
+    { p: 'Qual é a capital do Amazonas?', r: ['manaus'] },
+    { p: 'Qual estado brasileiro tem a sigla MG?', r: ['minas gerais'] },
+  ],
+
+  capitais: [
+    { p: 'Qual é a capital do Brasil?', r: ['brasilia', 'brasília'] },
+    { p: 'Qual é a capital de Minas Gerais?', r: ['belo horizonte'] },
+    { p: 'Qual é a capital do Paraná?', r: ['curitiba'] },
+    { p: 'Qual é a capital de Goiás?', r: ['goiania', 'goiânia'] },
+    { p: 'Qual é a capital do Pará?', r: ['belem', 'belém'] },
+    { p: 'Qual é a capital do Rio Grande do Sul?', r: ['porto alegre'] },
+  ],
+
+  bandeiras: [
+    { p: 'Qual país tem uma bandeira com um círculo vermelho no centro sobre fundo branco?', r: ['japao', 'japão'] },
+    { p: 'Qual país tem uma bandeira verde e amarela com um círculo azul no centro?', r: ['brasil'] },
+    { p: 'Qual país tem uma folha de bordo vermelha em sua bandeira?', r: ['canada', 'canadá'] },
+    { p: 'Qual país tem uma cruz branca sobre fundo vermelho?', r: ['suica', 'suíça'] },
+  ],
+
+  futebol: [
+    { p: 'Quantos jogadores de cada time começam uma partida de futebol em campo?', r: ['11', 'onze'] },
+    { p: 'Quantas Copas do Mundo a seleção brasileira masculina conquistou até 2022?', r: ['5', 'cinco'] },
+    { p: 'Qual país sediou a Copa do Mundo de 2014?', r: ['brasil'] },
+    { p: 'Quantos minutos dura uma partida de futebol no tempo normal?', r: ['90', 'noventa'] },
+  ],
+
+  matematica: [
+    { p: 'Quanto é 7 + 8?', r: ['15', 'quinze'] },
+    { p: 'Quanto é 9 × 6?', r: ['54', 'cinquenta e quatro'] },
+    { p: 'Quanto é 100 ÷ 4?', r: ['25', 'vinte e cinco'] },
+    { p: 'Quanto é 12 × 12?', r: ['144', 'cento e quarenta e quatro'] },
+  ],
+
+  verdadeiro: [
+    { p: 'Verdadeiro ou falso: o Sol é uma estrela.', r: ['verdadeiro', 'v'] },
+    { p: 'Verdadeiro ou falso: a água ferve a 100°C ao nível do mar.', r: ['verdadeiro', 'v'] },
+    { p: 'Verdadeiro ou falso: a capital do Brasil é São Paulo.', r: ['falso', 'f'] },
+    { p: 'Verdadeiro ou falso: a Terra é um planeta.', r: ['verdadeiro', 'v'] },
+  ],
+
+  animais: [
+    { p: 'Qual animal é conhecido como rei da selva?', r: ['leao', 'leão'] },
+    { p: 'Qual animal produz lã?', r: ['ovelha'] },
+    { p: 'Qual é o maior animal terrestre?', r: ['elefante'] },
+    { p: 'Qual animal é famoso por mudar de cor?', r: ['camaleao', 'camaleão'] },
+  ],
+
+  espaco: [
+    { p: 'Qual é o planeta mais próximo do Sol?', r: ['mercurio', 'mercúrio'] },
+    { p: 'Qual planeta é conhecido pelos seus anéis?', r: ['saturno'] },
+    { p: 'Qual é o satélite natural da Terra?', r: ['lua'] },
+    { p: 'Qual estrela está no centro do Sistema Solar?', r: ['sol'] },
+  ],
+
+  ciencia: [
+    { p: 'Qual gás os seres humanos precisam para respirar?', r: ['oxigenio', 'oxigênio'] },
+    { p: 'Qual é o símbolo químico da água?', r: ['h2o'] },
+    { p: 'Quantos ossos aproximadamente existem no corpo humano adulto?', r: ['206', 'duzentos e seis'] },
+  ],
+
+  conhecimentos: [
+    { p: 'Quantos dias tem uma semana?', r: ['7', 'sete'] },
+    { p: 'Qual é o continente onde fica o Brasil?', r: ['america', 'américa', 'america do sul', 'américa do sul'] },
+    { p: 'Qual é a moeda oficial do Brasil?', r: ['real', 'reais'] },
+    { p: 'Quantos meses tem um ano?', r: ['12', 'doze'] },
+  ],
+
+  filmes: [
+    { p: 'Qual filme apresenta o personagem Jack Sparrow?', r: ['piratas do caribe', 'piratas do caribe a maldicao do perola negra'] },
+    { p: 'Qual é o nome do brinquedo cowboy de Toy Story?', r: ['woody'] },
+  ],
+
+  musica: [
+    { p: 'Quantas cordas normalmente tem um violão?', r: ['6', 'seis'] },
+    { p: 'Qual instrumento possui teclas pretas e brancas e é muito usado em música?', r: ['piano'] },
+  ],
+
+  comida: [
+    { p: 'Qual alimento é usado tradicionalmente para fazer guacamole?', r: ['abacate'] },
+    { p: 'Qual ingrediente é a base do pão?', r: ['farinha'] },
+  ],
+}
+
+function normalizar(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function escolher(lista) {
+  return lista[Math.floor(Math.random() * lista.length)]
+}
+
+function respostaCorreta(resposta, respostas) {
+  const valor = normalizar(resposta)
+  return respostas.some((r) => {
+    const certa = normalizar(r)
+    return valor === certa || (certa.length >= 5 && valor.includes(certa))
+  })
+}
+
+async function premiar(jid, gold) {
+  const db = await getDatabase()
+  const usuario = db.data.users[jid] || { jid, gold: 0 }
+  usuario.gold = Number(usuario.gold || 0) + gold
+  db.data.users[jid] = usuario
+  await db.write()
+}
+
+export function responderJogo(jid, sender, texto) {
+  const partida = partidas.get(jid)
+  if (!partida || partida.encerrada) return null
+
+  if (!respostaCorreta(texto, partida.respostas)) return null
+
+  partida.encerrada = true
+  partidas.delete(jid)
+
+  return {
+    tipo: 'acerto',
+    sender,
+    gold: 10,
+    pergunta: partida.pergunta,
+  }
+}
+
+async function iniciarJogo({ reply, message, sender, tipo, nome }) {
+  const jid = message.key.remoteJid
+
+  if (!jid?.endsWith('@g.us')) {
+    return reply('❌ Os jogos só podem ser iniciados em grupos.')
+  }
+
+  if (partidas.has(jid)) {
+    return reply('⚠️ Já existe um jogo acontecendo neste grupo. Responda a pergunta atual primeiro!')
+  }
+
+  const lista = perguntas[tipo] || perguntas.quiz
+  const item = escolher(lista)
+
+  partidas.set(jid, {
+    tipo,
+    pergunta: item.p,
+    respostas: item.r,
+    encerrada: false,
+    iniciadoEm: Date.now(),
+  })
+
+  return reply(
+    `🎮 *${nome}*\n\n` +
+    `❓ ${item.p}\n\n` +
+    `🏆 Primeiro a acertar ganha *10 Gold*!\n` +
+    `💬 Responda normalmente, sem comando.`
+  )
+}
+
+const definicoes = [
+  ['quiz', ['quiz', 'perguntas'], '🧠 QUIZ'],
+  ['paises', ['paises', 'países', 'pais'], '🌎 PAÍSES'],
+  ['estados', ['estados'], '🇧🇷 ESTADOS BRASILEIROS'],
+  ['capitais', ['capitais'], '🏛️ CAPITAIS'],
+  ['bandeiras', ['bandeiras', 'bandeira'], '🚩 BANDEIRAS'],
+  ['futebol', ['futebol'], '⚽ FUTEBOL'],
+  ['matematica', ['matematica', 'matemática', 'math'], '➗ MATEMÁTICA'],
+  ['verdadeiro', ['verdadeiro', 'vf', 'v ou f'], '✅ VERDADEIRO OU FALSO'],
+  ['animais', ['animais', 'animal'], '🐾 ANIMAIS'],
+  ['espaco', ['espaco', 'espaço'], '🚀 ESPAÇO'],
+  ['ciencia', ['ciencia', 'ciência'], '🧪 CIÊNCIA'],
+  ['conhecimentos', ['conhecimentos', 'geral'], '📚 CONHECIMENTOS GERAIS'],
+  ['filmes', ['filmes', 'filme'], '🎬 FILMES'],
+  ['musica', ['musica', 'música'], '🎵 MÚSICA'],
+  ['comida', ['comida', 'comidas'], '🍔 COMIDA'],
+]
+
+export const jogosNovosCommands = definicoes.map(([tipo, aliases, nome]) => ({
+  name: tipo,
+  aliases,
+  description: `Inicia o jogo ${nome}.`,
+  async execute(context) {
+    return iniciarJogo({
+      ...context,
+      tipo,
+      nome,
+    })
+  },
+}))
+
+export async function processarRespostaDeJogo({ sock, jid, sender, texto, reply }) {
+  const resultado = responderJogo(jid, sender, texto)
+  if (!resultado) return false
+
+  await premiar(sender, resultado.gold)
+
+  await sock.sendMessage(jid, {
+    text:
+      `🏆 *RESPOSTA CERTA!*\n\n` +
+      `👤 @${sender.split('@')[0]} foi o primeiro a acertar!\n` +
+      `🪙 *+${resultado.gold} GOLD*\n\n` +
+      `🎮 Rodada encerrada. Use *!quiz* para jogar novamente.`,
+    mentions: [sender],
+  })
+
+  return true
+}
+
+export function existeJogoAtivo(jid) {
+  return partidas.has(jid)
+}

@@ -1,0 +1,26 @@
+import { formatarMenuPrivado, montarMenuPrivado, obterEstilo } from './menu.js'
+import { hasPermission } from '../permissions.js'
+import { getDatabase } from '../database.js'
+
+export const premiumMenuCommand = {
+  name: 'menupremium',
+  aliases: ['premium'],
+  description: 'Exibe os comandos Premium.',
+
+  async execute({ reply, sender, message }) {
+    if (!(await hasPermission(sender, 'premium'))) {
+      return reply('❌ Este menu é exclusivo para usuários Premium.')
+    }
+
+    const groupJid = message?.key?.remoteJid
+    const db = await getDatabase()
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+    const botName = personalizado.botName || 'Waster Bot'
+
+    const estilo = groupJid?.endsWith('@g.us') ? obterEstilo(db, groupJid) : 1
+    const textoMenu = montarMenuPrivado('premium', estilo, db.data.settings?.prefix || '!', personalizado)
+    return reply(await formatarMenuPrivado(textoMenu, groupJid))
+  },
+}

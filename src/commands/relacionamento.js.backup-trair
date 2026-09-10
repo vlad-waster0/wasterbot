@@ -1,0 +1,1275 @@
+import { readFile, mkdir, writeFile } from 'node:fs/promises'
+import { downloadContentFromMessage } from '@whiskeysockets/baileys'
+import { getDatabase } from '../database.js'
+import { config } from '../config.js'
+
+function obterRemetente(message) {
+  return (
+    message?.key?.participantAlt ||
+    message?.key?.participant ||
+    message?.key?.remoteJid
+  )
+}
+
+function obterIds(message) {
+  return [
+    message?.key?.participantAlt,
+    message?.key?.participant,
+    message?.key?.remoteJid,
+  ].filter(Boolean)
+}
+
+function obterMencao(message) {
+  return (
+    message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] ||
+    message?.message?.imageMessage?.contextInfo?.mentionedJid?.[0] ||
+    message?.message?.videoMessage?.contextInfo?.mentionedJid?.[0]
+  )
+}
+
+async function resolverMencao(sock, message, jid) {
+  if (!jid) return jid
+
+  if (!jid.endsWith("@lid") || !message?.key?.remoteJid?.endsWith("@g.us")) {
+    return jid
+  }
+
+  try {
+    const metadata = await sock.groupMetadata(message.key.remoteJid)
+
+    const participante = (metadata.participants || []).find(p =>
+      p.id === jid ||
+      p.lid === jid ||
+      p.phoneNumber === jid
+    )
+
+    if (participante?.phoneNumber) {
+      return participante.phoneNumber
+    }
+
+    if (participante?.id?.endsWith("@s.whatsapp.net")) {
+      return participante.id
+    }
+
+    return jid
+  } catch (error) {
+    console.error("ERRO AO RESOLVER MENÇÃO:", error)
+    return jid
+  }
+}
+
+function numero(jid) {
+  return String(jid || '').split('@')[0]
+}
+
+function textoMensagem(message) {
+  return (
+    message?.message?.conversation ||
+    message?.message?.extendedTextMessage?.text ||
+    message?.message?.imageMessage?.caption ||
+    message?.message?.videoMessage?.caption ||
+    ''
+  ).trim()
+}
+
+function textoCitado(message) {
+  const citado =
+    message?.message?.extendedTextMessage?.contextInfo?.quotedMessage
+
+  if (!citado) return ''
+
+  return (
+    citado.conversation ||
+    citado.extendedTextMessage?.text ||
+    citado.imageMessage?.caption ||
+    citado.videoMessage?.caption ||
+    ''
+  )
+}
+
+function nomeUsuario(message) {
+  return message?.pushName || 'Usuário'
+}
+
+async function descobrirNumero(sock, message, jid) {
+  if (!jid) return null
+
+  if (jid.endsWith('@s.whatsapp.net')) {
+    return numero(jid)
+  }
+
+  try {
+    if (sock.signalRepository?.lidMapping?.getPNForLID) {
+      const resultado = await sock.signalRepository.lidMapping.getPNForLID(jid)
+
+      if (resultado) {
+        const num = numero(resultado)
+        if (num && num !== numero(obterRemetente(message))) {
+          return num
+        }
+      }
+    }
+  } catch (error) {
+    console.error('ERRO AO CONVERTER LID:', error)
+  }
+
+  try {
+    const grupo = message?.key?.remoteJid
+
+    if (grupo?.endsWith('@g.us')) {
+      const metadata = await sock.groupMetadata(grupo)
+
+      const participante = (metadata.participants || []).find((p) =>
+        p.id === jid ||
+        p.lid === jid ||
+        p.phoneNumber === jid
+      )
+
+      if (participante) {
+        if (participante.phoneNumber) {
+          return numero(participante.phoneNumber)
+        }
+
+        if (participante.id?.endsWith('@s.whatsapp.net')) {
+          return numero(participante.id)
+        }
+
+        if (participante.jid?.endsWith('@s.whatsapp.net')) {
+          return numero(participante.jid)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('ERRO AO BUSCAR NÚMERO DO GRUPO:', error)
+  }
+
+  return numero(jid)
+}
+async function nomeDoAlvo(sock, message, jid) {
+  try {
+    const grupo = message?.key?.remoteJid
+
+    if (grupo?.endsWith('@g.us')) {
+      const metadata = await sock.groupMetadata(grupo)
+
+      const participante = (metadata.participants || []).find((p) =>
+        p.id === jid ||
+        p.lid === jid ||
+        p.phoneNumber === jid ||
+        p.jid === jid
+      )
+
+      if (participante) {
+        const nome =
+          participante.name ||
+          participante.notify ||
+          participante.pushName ||
+          participante.displayName ||
+          participante.vname
+
+        if (nome && String(nome).trim()) {
+          return String(nome).trim()
+        }
+      }
+    }
+  } catch (error) {
+    console.error('ERRO AO BUSCAR NOME DO PERFIL:', error)
+  }
+
+  return '~'
+}
+async function enviarMidia({
+  sock,
+  message,
+  caption,
+  mentions = [],
+  nomeGif,
+}) {
+  const db = await getDatabase()
+
+  const gifs = db.data.settings?.gifs || {}
+
+  const chave = String(nomeGif || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+
+  const item =
+    gifs[nomeGif] ||
+    gifs[chave]
+
+  if (!item) {
+    console.log('⚠️ MÍDIA NÃO CONFIGURADA:', nomeGif)
+    return false
+  }
+
+  const arquivo =
+    typeof item === 'string'
+      ? item
+      : item.arquivo || item.file
+
+  const tipo =
+    typeof item === 'string'
+      ? 'gif'
+      : item.tipo || item.type || 'gif'
+
+  if (!arquivo) {
+    console.log('⚠️ ARQUIVO DA MÍDIA NÃO ENCONTRADO:', nomeGif)
+    return false
+  }
+
+  try {
+    const buffer = await readFile(arquivo)
+
+    console.log('✅ ENVIANDO MÍDIA:', nomeGif, arquivo, tipo)
+
+    if (tipo === 'image') {
+      await sock.sendMessage(
+        message.key.remoteJid,
+        {
+          image: buffer,
+          caption,
+          mentions,
+        },
+        { quoted: message }
+      )
+    } else {
+      await sock.sendMessage(
+        message.key.remoteJid,
+        {
+          video: buffer,
+          gifPlayback: true,
+          caption,
+          mentions,
+        },
+        { quoted: message }
+      )
+    }
+
+    return true
+  } catch (error) {
+    console.error('❌ ERRO AO ENVIAR MÍDIA DE RELACIONAMENTO:', error)
+    return false
+  }
+}
+
+function inicializarRelacionamentos(db) {
+  db.data.relationships ||= {}
+  db.data.relationships.pending ||= {}
+}
+
+function chave(from, to) {
+  return `${from}:${to}`
+}
+
+function encontrarPedido(db, from, to) {
+  return db.data.relationships?.pending?.[chave(from, to)] || null
+}
+
+function encontrarPedidoPara(db, ids) {
+  const pendentes = db.data.relationships?.pending || {}
+  const listaIds = Array.isArray(ids)
+    ? ids.filter(Boolean)
+    : [ids].filter(Boolean)
+
+  const normalizar = (id) => {
+    if (!id) return ''
+    return String(id).split('@')[0]
+  }
+
+  const numeros = new Set(listaIds.map(normalizar).filter(Boolean))
+
+  for (const [key, pedido] of Object.entries(pendentes)) {
+    const candidatos = [
+      pedido.to,
+      pedido.toAlt,
+      pedido.toLid,
+      pedido.destinatario,
+      pedido.destinatarioAlt,
+      pedido.destinatarioLid,
+    ]
+
+    if (
+      candidatos.some(id => id && (
+        listaIds.includes(id) ||
+        numeros.has(normalizar(id))
+      ))
+    ) {
+      return { key, pedido }
+    }
+  }
+
+  return null
+}
+
+
+function jidCanonico(jid) {
+  if (!jid) return jid
+  const texto = String(jid)
+  if (texto.endsWith('@s.whatsapp.net')) return texto
+  if (/^\d+$/.test(texto)) return `${texto}@s.whatsapp.net`
+  return texto
+}
+
+async function resolverUsuario(sock, message, jid) {
+  if (!jid) return jid
+  const resolvido = await resolverMencao(sock, message, jid)
+  return jidCanonico(resolvido)
+}
+
+function encontrarRelacaoUsuario(db, jid) {
+  return encontrarRelacionamento(db, jid)
+}
+
+function parceiro(db, jid) {
+  return db.data.relationships?.[jid]?.parceiro || null
+}
+
+export const relacionamentoCommands = [
+  {
+    name: 'menurelacionamento',
+    aliases: ['menurelacao', 'menuperfil'],
+    async execute({ sock, message }) {
+      const texto = [
+        '💖 *PERFIL E RELACIONAMENTO*',
+        '',
+        '👤 *PERFIL*',
+        '▸ !perfil',
+        '▸ !perfil @pessoa',
+        '▸ !meuperfil',
+        '',
+        '❤️ *RELACIONAMENTO*',
+        '▸ !namorar @pessoa',
+        '▸ !sim',
+        '▸ !não',
+        '▸ !cancelarpedido @pessoa',
+        '▸ !terminar',
+        '▸ !relacionamento',
+        '▸ !casal',
+        '▸ !ex',
+        '▸ !solteiro',
+        '',
+        '💍 *DIVERSÃO*',
+        '▸ !casar @pessoa',
+        '▸ !ship @pessoa @pessoa',
+        '▸ !beijar @pessoa',
+        '▸ !abraçar @pessoa'
+      ].join('\n')
+
+      return sock.sendMessage(
+        message.key.remoteJid,
+        { text: texto },
+        { quoted: message }
+      )
+    },
+  },
+
+  {
+    name: 'perfil',
+    aliases: ['meuperfil'],
+
+    async execute({ sock, message, reply }) {
+      const contexto = message?.message?.extendedTextMessage?.contextInfo || {}
+      const mencoes = contexto.mentionedJid || []
+      const alvo = mencoes[0] || obterMencao(message) || obterRemetente(message)
+
+      console.log('=== PERFIL ===')
+      console.log('TEXTO:', textoMensagem(message))
+      console.log('MENCÕES:', JSON.stringify(mencoes))
+      console.log('ALVO:', alvo)
+      console.log('REMETENTE:', obterRemetente(message))
+      console.log('============')
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const numeroReal = await descobrirNumero(sock, message, alvo)
+      const nome =
+        obterMencao(message)
+          ? await nomeDoAlvo(sock, message, alvo)
+          : nomeUsuario(message)
+
+      const usuario = db.data.users[alvo] || {}
+      const rel = db.data.relationships[alvo]
+
+      let foto = null
+
+      try {
+        foto = await sock.profilePictureUrl(alvo, 'image')
+      } catch {}
+
+      const gold = Number(usuario.gold || 0)
+
+      let status = 'Solteiro(a)'
+
+      if (rel?.status === 'namorando' && rel.parceiro) {
+        const nomeParceiro =
+          await nomeDoAlvo(sock, message, rel.parceiro)
+
+        status = `Namorando com ${nomeParceiro}`
+      }
+
+      const texto = `👤 *PERFIL*
+
+╭━━━〔 🪪 INFORMAÇÕES 〕━━━╮
+┃ 👤 Nome: ${nome}
+┃ 📱 Número: ${numeroReal}
+┃ 🪙 Gold: ${gold}
+┃ 💎 Premium: ${usuario.premium ? 'Sim' : 'Não'}
+╰━━━━━━━━━━━━━━━━━━━━╯
+
+❤️ *RELACIONAMENTO*
+┃ Status: ${status}`
+
+      if (foto) {
+        try {
+          await sock.sendMessage(
+            message.key.remoteJid,
+            {
+              image: { url: foto },
+              caption: texto,
+              mentions: [alvoReal],
+            },
+            { quoted: message }
+          )
+          return
+        } catch (error) {
+          console.error('ERRO AO ENVIAR FOTO DO PERFIL:', error)
+        }
+      }
+
+      return sock.sendMessage(
+        message.key.remoteJid,
+        {
+          text: texto,
+          mentions: [alvo],
+        },
+        { quoted: message }
+      )
+    },
+  },
+
+  {
+    name: 'namorar',
+    aliases: ['namoro', 'pedirnamoro'],
+
+    async execute({ sock, message, reply }) {
+      const alvoOriginal = obterMencao(message)
+      const alvo = await resolverMencao(sock, message, alvoOriginal)
+      const remetente = obterRemetente(message)
+
+      if (!alvo) {
+        return reply(
+          '❌ Marque a pessoa que você quer convidar para namorar.\n\n' +
+          'Exemplo: !namorar @pessoa'
+        )
+      }
+
+      if (alvo === remetente) {
+        return reply('😂 Você não pode pedir você mesmo em namoro!')
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      if (db.data.relationships[remetente]?.status === 'namorando') {
+        return reply('❤️ Você já está em um relacionamento!')
+      }
+
+      if (db.data.relationships[alvo]?.status === 'namorando') {
+        return reply('💔 Essa pessoa já está em um relacionamento!')
+      }
+
+      if (encontrarPedido(db, remetente, alvo)) {
+        return reply('💌 Você já enviou um pedido para essa pessoa!')
+      }
+
+      const nome = nomeUsuario(message)
+
+      db.data.relationships.pending[chave(remetente, alvo)] = {
+        from: remetente,
+        to: alvo,
+        fromName: nome,
+        createdAt: Date.now(),
+      }
+
+      await db.write()
+
+      const marcado = `@${numero(alvo)}`
+
+      const caption = `💘 *PEDIDO DE NAMORO!*
+
+💌 ${nome} está convidando ${marcado} para namorar!
+
+❤️ Você aceita namorar com ${nome}?
+
+👉 Responda esta mensagem com:
+✅ *!sim* para aceitar
+❌ *!não* para recusar
+
+💖 Boa sorte aos dois!`
+
+      await enviarMidia({
+        sock,
+        message,
+        caption,
+        mentions: [alvo, remetente],
+        nomeGif: 'namorar',
+      })
+    },
+  },
+
+  {
+    name: 'cancelarpedido',
+    aliases: ['cancelarnamoro', 'cancelarpedido namoro'],
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const alvo = obterMencao(message)
+
+      if (!alvo) {
+        return reply(
+          '❌ Marque a pessoa do pedido que você deseja cancelar.\\n\\nExemplo: !cancelarpedido @pessoa'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const remetenteReal = await resolverUsuario(sock, message, remetente)
+      const alvoReal = await resolverUsuario(sock, message, alvo)
+
+      const encontrado = encontrarPedido(db, remetenteReal, alvoReal)
+
+      if (!encontrado) {
+        return reply(
+          '❌ Não encontrei um pedido de namoro pendente enviado por você para essa pessoa.'
+        )
+      }
+
+      delete db.data.relationships.pending[encontrado.key]
+      await db.write()
+
+      const marcado = `@${numero(alvoReal)}`
+
+      return sock.sendMessage(
+        message.key.remoteJid,
+        {
+          text:
+            `❌ *PEDIDO DE NAMORO CANCELADO!*\\n\\n` +
+            `Você cancelou o pedido de namoro enviado para ${marcado}. ❤️`,
+          mentions: [alvo],
+        },
+        { quoted: message }
+      )
+    },
+  },
+  { name: 'sim',
+    aliases: ['aceitar', 'aceito'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const citado = textoCitado(message)
+
+      if (!citado) {
+        return reply(
+          '💌 Responda diretamente ao pedido de namoro com *!sim*.'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const encontrado = encontrarPedidoPara(db, obterIds(message))
+
+      if (!encontrado) {
+        return reply('❌ Não encontrei um pedido de relacionamento para você.')
+      }
+
+      const { key, pedido } = encontrado
+
+      if (
+        !citado.includes('PEDIDO DE NAMORO') &&
+        !citado.includes('PEDIDO DE CASAMENTO')
+      ) {
+        return reply(
+          '❌ Essa não parece ser uma mensagem válida de pedido.'
+        )
+      }
+
+      const fromReal = await resolverUsuario(sock, message, pedido.from)
+      const toReal = await resolverUsuario(sock, message, pedido.to)
+
+      if (!fromReal || !toReal) {
+        return reply('❌ Não consegui identificar corretamente as duas pessoas.')
+      }
+
+      if (pedido.tipo === 'casamento') {
+        const relFromEncontrada = encontrarRelacaoUsuario(db, fromReal)
+        const relToEncontrada = encontrarRelacaoUsuario(db, toReal)
+
+        const relFrom = relFromEncontrada?.rel
+        const relTo = relToEncontrada?.rel
+
+        if (
+          relTo?.status === 'casado' &&
+          !mesmosUsuarios(relTo.parceiro, fromReal)
+        ) {
+          return reply('💍 Você já está casado(a) com outra pessoa! 😂❤️')
+        }
+
+        if (
+          relFrom?.status === 'casado' &&
+          !mesmosUsuarios(relFrom.parceiro, toReal)
+        ) {
+          return reply('💍 Essa pessoa já está casada com outra pessoa! 😂❤️')
+        }
+
+        const agora = Date.now()
+
+        db.data.relationships[fromReal] = {
+          ...(relFrom || {}),
+          status: 'casado',
+          parceiro: toReal,
+          desde: agora,
+        }
+
+        db.data.relationships[toReal] = {
+          ...(relTo || {}),
+          status: 'casado',
+          parceiro: fromReal,
+          desde: agora,
+        }
+
+        if (relFromEncontrada?.key && relFromEncontrada.key !== fromReal) {
+          delete db.data.relationships[relFromEncontrada.key]
+        }
+
+        if (relToEncontrada?.key && relToEncontrada.key !== toReal) {
+          delete db.data.relationships[relToEncontrada.key]
+        }
+
+        delete db.data.relationships.pending[key]
+        await db.write()
+
+        const from = `@${numero(fromReal)}`
+        const to = `@${numero(toReal)}`
+
+        return await enviarMidia({
+          sock,
+          message,
+          caption:
+            `💒 *CASAMENTO ACEITO!* 💍\n\n` +
+            `🥰 ${to} aceitou o pedido de casamento de ${from}!\n\n` +
+            `💖 Agora vocês estão oficialmente casados!\n\n` +
+            `🎉 Que venha muito amor, carinho e felicidade para o casal! ❤️`,
+          mentions: [fromReal, toReal],
+          nomeGif: 'pedido_casamento',
+        })
+      }
+
+      const relFromEncontrada = encontrarRelacaoUsuario(db, fromReal)
+      const relToEncontrada = encontrarRelacaoUsuario(db, toReal)
+
+      const relFrom = relFromEncontrada?.rel
+      const relTo = relToEncontrada?.rel
+
+      if (relFrom?.status === 'namorando') {
+        return reply('❤️ Essa pessoa já está namorando!')
+      }
+
+      if (relTo?.status === 'namorando') {
+        return reply('❤️ Você já está namorando com outra pessoa!')
+      }
+
+      const agora = Date.now()
+
+      db.data.relationships[fromReal] = {
+        status: 'namorando',
+        parceiro: toReal,
+        desde: agora,
+      }
+
+      db.data.relationships[toReal] = {
+        status: 'namorando',
+        parceiro: fromReal,
+        desde: agora,
+      }
+
+      if (relFromEncontrada?.key && relFromEncontrada.key !== fromReal) {
+        delete db.data.relationships[relFromEncontrada.key]
+      }
+
+      if (relToEncontrada?.key && relToEncontrada.key !== toReal) {
+        delete db.data.relationships[relToEncontrada.key]
+      }
+
+      delete db.data.relationships.pending[key]
+      await db.write()
+
+      const from = `@${numero(fromReal)}`
+      const to = `@${numero(toReal)}`
+
+      return await enviarMidia({
+        sock,
+        message,
+        caption:
+          `❤️ *NAMORO ACEITO!*\n\n` +
+          `🥰 ${to} aceitou o pedido de namoro de ${from}!\n\n` +
+          `💑 Agora vocês estão oficialmente namorando! ❤️`,
+        mentions: [fromReal, toReal],
+        nomeGif: 'pedido_namoro',
+      })
+    },
+  },
+
+  {
+    name: 'não',
+    aliases: ['nao', 'recusar', 'recusei'],
+
+    async execute({ sock, message, reply }) {
+      const citado = textoCitado(message)
+
+      if (!citado) {
+        return reply(
+          '💌 Responda diretamente ao pedido de relacionamento com *!não*.'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const encontrado = encontrarPedidoPara(db, obterIds(message))
+
+      if (!encontrado) {
+        return reply('❌ Não encontrei um pedido de relacionamento para você.')
+      }
+
+      const { key, pedido } = encontrado
+
+      if (
+        !citado.includes('PEDIDO DE NAMORO') &&
+        !citado.includes('PEDIDO DE CASAMENTO')
+      ) {
+        return reply(
+          '❌ Essa não parece ser uma mensagem válida de pedido.'
+        )
+      }
+
+      const fromReal = await resolverUsuario(sock, message, pedido.from)
+      const toReal = await resolverUsuario(sock, message, pedido.to)
+
+      delete db.data.relationships.pending[key]
+      await db.write()
+
+      const casamento = pedido.tipo === 'casamento'
+
+      const remetente = `@${numero(fromReal)}`
+      const destinatario = `@${numero(toReal)}`
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: casamento
+          ? `💔 *PEDIDO DE CASAMENTO RECUSADO!*\n\n` +
+            `😢 ${destinatario} não aceitou o pedido de casamento de ${remetente}.\n\n` +
+            `😂 Quem sabe na próxima! 💍❤️`
+          : `💔 *PEDIDO DE NAMORO RECUSADO!*\n\n` +
+            `😢 ${destinatario} não aceitou o pedido de ${remetente}.\n\n` +
+            `😂 Quem sabe na próxima! ❤️`,
+        mentions: [fromReal, toReal],
+        nomeGif: 'namoronao',
+      })
+    },
+  },
+
+  {
+    name: 'terminar',
+    aliases: ['terminarrelacionamento', 'terminonamoro'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (!rel?.status || rel.status !== 'namorando' || !rel.parceiro) {
+        return reply('💔 Você não está namorando no momento.')
+      }
+
+      const alvo = rel.parceiro
+
+      delete db.data.relationships[remetente]
+      delete db.data.relationships[alvo]
+
+      await db.write()
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: `💔 *RELACIONAMENTO ENCERRADO!*
+
+😢 @${numero(remetente)} e @${numero(alvo)} não estão mais namorando.
+
+💔 Agora cada um segue seu caminho...
+
+🌹 Desejamos o melhor para os dois!`,
+        mentions: [remetente, alvo],
+        nomeGif: 'terminar',
+      })
+    },
+  },
+
+  {
+    name: 'relacionamento',
+    aliases: ['relacao', 'namoroatual', 'statusrelacionamento'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (!rel?.parceiro) {
+        return reply('💔 Você está solteiro(a)!')
+      }
+
+      const nome = await nomeDoAlvo(
+        sock,
+        message,
+        rel.parceiro
+      )
+
+      return reply(
+        `❤️ *SEU RELACIONAMENTO*\n\n` +
+        `💑 Você está namorando com ${nome}!\n` +
+        `💕 Juntos desde: ${new Date(rel.desde).toLocaleDateString('pt-BR')}`
+      )
+    },
+  },
+
+  {
+    name: 'casal',
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (!rel?.parceiro) {
+        return reply('💔 Você não está em um relacionamento.')
+      }
+
+      const nome = await nomeDoAlvo(
+        sock,
+        message,
+        rel.parceiro
+      )
+
+      return reply(
+        `💑 *CASAL*\n\n` +
+        `❤️ ${nome} + Você\n\n` +
+        `💕 Um casal lindo!`
+      )
+    },
+  },
+
+  {
+    name: 'ex',
+    aliases: ['meuex'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      const ex = db.data.users[remetente]?.ex
+
+      if (!ex) {
+        return reply('💔 Você ainda não possui um ex registrado.')
+      }
+
+      const nome = await nomeDoAlvo(sock, message, ex)
+
+      return reply(`💔 Seu ex registrado é ${nome}.`)
+    },
+  },
+
+  {
+    name: 'solteiro',
+    aliases: ['solteira'],
+
+    async execute({ message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (rel?.status === 'namorando') {
+        return reply(
+          '❤️ Você está namorando! Use *!terminar* se realmente quiser terminar.'
+        )
+      }
+
+      return reply('💘 Você está solteiro(a) e disponível!')
+    },
+  },
+
+  {
+  name: 'casar',
+  aliases: ['casamento'],
+  async execute({ sock, message }) {
+    const alvoOriginal = obterMencao(message)
+    const alvo = await resolverMencao(sock, message, alvoOriginal)
+
+    if (!alvo) {
+      return sock.sendMessage(message.key.remoteJid, {
+        text: '💍 Marque alguém para casar!\n\nExemplo: !casar @pessoa'
+      })
+    }
+
+    const remetente = obterRemetente(message)
+
+    if (alvo === remetente) {
+      return sock.sendMessage(message.key.remoteJid, {
+        text: '😂 Você não pode casar consigo mesmo!'
+      })
+    }
+
+    const db = await getDatabase()
+    inicializarRelacionamentos(db)
+    db.data.relationships.pending ||= {}
+
+    const chavePedido = chave(remetente, alvo)
+
+    db.data.relationships.pending[chavePedido] = {
+      from: remetente,
+      to: alvo,
+      tipo: 'casamento',
+      criadoEm: Date.now(),
+    }
+
+    await db.write()
+
+    const textoPedido =
+      `💍 *PEDIDO DE CASAMENTO!*\n\n` +
+      `💘 @${numero(remetente)} está pedindo @${numero(alvo)} em casamento!\n\n` +
+      `💒 Responda esta mensagem com *!sim* para aceitar\n` +
+      `❌ Responda com *!não* para recusar\n\n` +
+      `❤️ Será que vem casamento por aí? 👀`
+
+    const enviouMidia = await enviarMidia({
+      sock,
+      message,
+      caption: textoPedido,
+      mentions: [remetente, alvo],
+      nomeGif: 'pedido_casamento',
+    })
+
+    if (!enviouMidia) {
+      return sock.sendMessage(message.key.remoteJid, {
+        text: textoPedido,
+        mentions: [remetente, alvo],
+      })
+    }
+
+    return
+  },
+},
+{
+  name: 'ship',
+  async execute({ sock, message }) {
+    const mensagens = [
+      message?.message?.extendedTextMessage,
+      message?.message?.imageMessage,
+      message?.message?.videoMessage,
+      message?.message?.documentMessage,
+      message?.message?.buttonsResponseMessage,
+      message?.message?.templateButtonReplyMessage,
+    ].filter(Boolean)
+
+    let mencoes = []
+
+    for (const msg of mensagens) {
+      const lista = msg?.contextInfo?.mentionedJid || []
+      if (lista.length) {
+        mencoes = lista
+        break
+      }
+    }
+
+    if (mencoes.length < 2) {
+      return sock.sendMessage(message.key.remoteJid, {
+        text: '💘 Marque duas pessoas!\n\nExemplo: !ship @pessoa1 @pessoa2'
+      })
+    }
+
+    const pessoa1 = await resolverMencao(sock, message, mencoes[0])
+    const pessoa2 = await resolverMencao(sock, message, mencoes[1])
+
+    if (!pessoa1 || !pessoa2) {
+      return sock.sendMessage(message.key.remoteJid, {
+        text: '❌ Não consegui identificar as duas pessoas marcadas.'
+      })
+    }
+
+    const porcentagem = Math.floor(Math.random() * 71) + 30
+
+    const resultado =
+      porcentagem >= 80
+        ? '🔥 Esse casal tem futuro!'
+        : porcentagem >= 50
+          ? '🥰 Pode dar certo!'
+          : '😂 Melhor continuar na amizade!'
+
+    return sock.sendMessage(message.key.remoteJid, {
+      text:
+        `💘 *SHIP DO CASAL!*\n\n` +
+        `❤️ @${numero(pessoa1)} + @${numero(pessoa2)}\n\n` +
+        `💖 Compatibilidade: *${porcentagem}%*\n\n` +
+        resultado,
+      mentions: [pessoa1, pessoa2],
+    })
+  },
+},
+{
+  name: 'beijar',
+    aliases: ['beijo'],
+
+    async execute({ sock, message, reply }) {
+      const alvo = obterMencao(message)
+
+      if (!alvo) {
+        return reply('💋 Marque alguém!\n\nExemplo: !beijar @pessoa')
+      }
+
+      const remetente = obterRemetente(message)
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: `💋 @${numero(remetente)} deu um beijo em @${numero(alvo)}! 😘`,
+        mentions: [remetente, alvo],
+        nomeGif: 'beijar',
+      })
+    },
+  },
+
+  {
+    name: 'abraçar',
+    aliases: ['abracar', 'abraço', 'abraco'],
+
+    async execute({ sock, message, reply }) {
+      const alvo = obterMencao(message)
+
+      if (!alvo) {
+        return reply('🤗 Marque alguém!\n\nExemplo: !abraçar @pessoa')
+      }
+
+      const remetente = obterRemetente(message)
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: `🤗 @${numero(remetente)} deu um abraço em @${numero(alvo)}! ❤️`,
+        mentions: [remetente, alvo],
+        nomeGif: 'abraçar',
+      })
+    },
+  },
+]
+
+export const relacionamentoConfigCommands = [
+  {
+    name: 'alterargifrelacionamento',
+    aliases: ['configgifrelacionamento', 'alterarfotorelacionamento'],
+    async execute({ sock, message, args, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+
+      const ehDono =
+        config.ownerNumbers.includes(remetente.split('@')[0]) ||
+        db.data.users[remetente]?.botOwner ||
+        db.data.users[remetente]?.owner ||
+        obterIds(message).some((jid) =>
+          jid && jid.endsWith('@s.whatsapp.net') &&
+          db.data.users[jid]?.botOwner
+        )
+
+      if (!ehDono) {
+        return reply('❌ Apenas o dono do bot pode configurar.')
+      }
+
+      const nome = String(args?.[0] || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+
+      const permitidos = [
+        'namorar',
+        'namoroaceito',
+        'namoronao',
+        'terminar',
+        'solteiro',
+        'casar',
+        'ship',
+        'beijar',
+        'abracar',
+      ]
+
+      if (!permitidos.includes(nome)) {
+        return reply(
+          '❌ Escolha uma opção válida:\\n\\n' +
+          permitidos.map(x => '▸ ' + x).join('\\n') +
+          '\\n\\nResponda uma foto ou GIF com:\\n!alterargifrelacionamento ' +
+          (permitidos[0])
+        )
+      }
+
+      const citado =
+        message?.message?.extendedTextMessage?.contextInfo?.quotedMessage
+
+      if (!citado?.imageMessage && !citado?.videoMessage) {
+        return reply(
+          '❌ Responda a uma FOTO ou GIF com:\\n' +
+          '!alterargifrelacionamento ' + nome
+        )
+      }
+
+      try {
+        await mkdir('data/relacionamento', { recursive: true })
+
+        let buffer
+        let tipo
+        let extensao
+
+        if (citado.imageMessage) {
+          tipo = 'image'
+          extensao = 'jpg'
+
+          const stream = await downloadContentFromMessage(
+            citado.imageMessage,
+            'image'
+          )
+
+          const partes = []
+          for await (const parte of stream) {
+            partes.push(parte)
+          }
+
+          buffer = Buffer.concat(partes)
+        } else {
+          tipo = 'gif'
+          extensao = 'mp4'
+
+          const stream = await downloadContentFromMessage(
+            citado.videoMessage,
+            'video'
+          )
+
+          const partes = []
+          for await (const parte of stream) {
+            partes.push(parte)
+          }
+
+          buffer = Buffer.concat(partes)
+        }
+
+        const arquivo = `data/relacionamento/${nome}.${extensao}`
+
+        await writeFile(arquivo, buffer)
+
+        db.data.settings ||= {}
+        db.data.settings.relacionamento ||= {}
+        db.data.settings.relacionamento[nome] = {
+          arquivo,
+          tipo,
+        }
+
+        await db.write()
+
+        return reply(
+          `✅ *MÍDIA DE RELACIONAMENTO SALVA!*
+
+❤️ Tipo: ${nome}
+📁 Arquivo: ${arquivo}
+🎞️ Mídia: ${tipo === 'image' ? 'Foto' : 'GIF'}
+
+Agora essa mídia será usada automaticamente nas mensagens de *${nome}*.`
+        )
+      } catch (error) {
+        console.error('ERRO AO SALVAR MÍDIA DE RELACIONAMENTO:', error)
+        return reply('❌ Não consegui salvar essa mídia. Tente novamente.')
+      }
+    },
+  },
+
+  {
+    name: 'listagifsrelacionamento',
+    aliases: ['listarelacionamento', 'midiasrelacionamento'],
+    async execute({ message, reply }) {
+      const db = await getDatabase()
+      const midias = db.data.settings?.relacionamento || {}
+
+      const nomes = Object.keys(midias)
+
+      if (!nomes.length) {
+        return reply(
+          '📂 *MÍDIAS DE RELACIONAMENTO*\\n\\n' +
+          'Nenhuma mídia configurada ainda.'
+        )
+      }
+
+      return reply(
+        '❤️ *MÍDIAS DE RELACIONAMENTO*\\n\\n' +
+        nomes.map(nome => {
+          const tipo = midias[nome]?.tipo === 'image' ? '🖼️ Foto' : '🎞️ GIF'
+          return `▸ ${nome} — ${tipo}`
+        }).join('\\n')
+      )
+    },
+  },
+
+  {
+    name: 'removergifrelacionamento',
+    aliases: ['removermidiarelacionamento'],
+    async execute({ message, args, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+
+      const ehDono =
+        db.data.users[remetente]?.botOwner ||
+        db.data.users[remetente]?.owner
+
+      if (!ehDono) {
+        return reply('❌ Apenas o dono do bot pode remover mídias.')
+      }
+
+      const nome = String(args?.[0] || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+
+      const midias = db.data.settings?.relacionamento || {}
+      const item = midias[nome]
+
+      if (!item) {
+        return reply('❌ Não existe mídia configurada para: ' + nome)
+      }
+
+      try {
+        if (item.arquivo && fs.existsSync(item.arquivo)) {
+          fs.unlinkSync(item.arquivo)
+        }
+      } catch (error) {
+        console.error('ERRO AO REMOVER ARQUIVO:', error)
+      }
+
+      delete midias[nome]
+      await db.write()
+
+      return reply(`✅ Mídia de *${nome}* removida com sucesso!`)
+    },
+  },
+]

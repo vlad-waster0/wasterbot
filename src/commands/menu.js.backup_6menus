@@ -1,0 +1,205 @@
+import { config } from '../config.js'
+import { getDatabase } from '../database.js'
+import { readFile } from 'node:fs/promises'
+
+const aluguelTexto = `🤖 *ALUGUE SEU BOT*
+
+💰 *PLANOS MENSAIS*
+
+1️⃣ *Bot de figurinhas para WhatsApp no Privado*
+💵 R$ 4,00/mês
+
+2️⃣ *BOT 0-50 MEMBROS*
+💵 R$ 14,00/mês
+
+3️⃣ *BOT 50-300 MEMBROS*
+💵 R$ 19,00/mês
+
+4️⃣ *BOT 300-600 MEMBROS*
+💵 R$ 24,00/mês
+
+5️⃣ *BOT PERSONALIZADO*
+💵 R$ 28,00/mês
+
+6️⃣ *BOT +600 MEMBROS*
+💵 R$ 33,00/mês
+
+🎁 *PRIMEIRA ASSINATURA*
+Você ganha *+10 dias* de uso.
+
+📲 *Para contratar:*
+https://wa.me/31996149100
+
+📞 *Contato:* 31996149100`
+
+export const menuCommand = {
+  name: 'menu',
+  aliases: ['help', 'comandos'],
+  description: 'Exibe o menu principal.',
+
+  async execute({ reply, message, sock }) {
+    const p = config.prefix
+    const nome = message.pushName || 'usuário'
+
+    const hora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    })
+
+    const db = await getDatabase()
+    const groupJid = message.key.remoteJid
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+
+    const emoji = personalizado.emoji || '🦇🩸'
+    const siteEmoji = personalizado.siteEmoji ?? '🌐'
+    const site1 = 'wasterbot.site'
+    const site2 = 'lojawaster.shop'
+    const horaAtual = Number(new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
+    let saudacao = '🌙 Boa noite'
+    if (horaAtual >= 5 && horaAtual < 12) saudacao = '🌅 Bom dia'
+    else if (horaAtual >= 12 && horaAtual < 18) saudacao = '☀️ Boa tarde'
+
+    const texto = `╭━━━━ ◦ ❖ ◦ ━━━━━╮
+     ${emoji} ${personalizado.botName || config.botName} ${emoji}
+╰━━━━ ◦ ❖ ◦ ━━━━━╯
+${siteEmoji} Site: ${site1}\n${siteEmoji} Site: ${site2}
+
+- ${saudacao} ${nome}, são ${hora}
+
+🎨 *FIGURINHAS*
+▸ ${p}sticker
+▸ ${p}semvisualizar
+▸ ${p}toimg
+▸ ${p}renomearfig Novo Nome
+
+📥 *DOWNLOADS*
+▸ ${p}menubaixar
+
+🛡️ *ADMINISTRAÇÃO & SEGURANÇA*
+▸ ${p}menuadm
+▸ ${p}expulsar
+▸ ${p}adicionar
+▸ ${p}lista_negra
+▸ ${p}mute
+▸ ${p}desmute
+▸ ${p}promover
+▸ ${p}rebaixar
+▸ ${p}advertir
+▸ ${p}advertencias
+▸ ${p}removeradvertencia
+▸ ${p}bemvindo
+▸ ${p}antilink
+▸ ${p}antipalavra
+▸ ${p}mencionar
+▸ ${p}reportar
+
+💎 *PREMIUM*
+▸ ${p}menupremium
+▸ ${p}alterarnome
+▸ ${p}alterarfoto
+
+👑 *DONO*
+▸ ${p}menudono
+
+  🎮 *JOGOS*
+  ▸ ${p}menujogos
+  ▸ ${p}oqueeoque
+  ▸ ${p}caracoroa quantidade
+  ▸ ${p}forca
+  ▸ ${p}moeda
+  ▸ ${p}ppp
+  ▸ ${p}menugold
+  ▸ ${p}jogodavelha
+  ▸ ${p}quiz
+
+  😂 *BRINCADEIRAS*
+  ▸ ${p}menubrincadeiras
+  ▸ ${p}aura @pessoa
+  ▸ ${p}rankgay
+  ▸ ${p}adotar @pessoa tipo
+  ▸ ${p}arvore
+  ▸ ${p}mentiroso @pessoa
+  ▸ ${p}mentirosa @pessoa
+  ▸ ${p}corno @pessoa
+  ▸ ${p}corna @pessoa
+  ▸ ${p}lindo @pessoa
+  ▸ ${p}linda @pessoa
+  ▸ ${p}feio @pessoa
+  ▸ ${p}feia @pessoa
+  ▸ ${p}casar @pessoa
+  ▸ ${p}abraco @pessoa
+  ▸ ${p}beijo @pessoa
+  ▸ ${p}chute @pessoa
+  ▸ ${p}tapa @pessoa
+  ▸ ${p}travesseirada @pessoa
+  ▸ ${p}calvo @pessoa
+  ▸ ${p}gay @pessoa
+  ▸ ${p}morder @pessoa
+  ▸ ${p}carinho @pessoa
+
+  👤 *PERFIL & RELACIONAMENTO*
+▸ ${p}menuperfil
+▸ ${p}perfil
+▸ ${p}checkativo
+▸ ${p}menurelacionamento
+▸ ${p}namorar
+▸ ${p}terminar
+▸ ${p}statusrelacionamento
+
+
+📊 *INFORMAÇÕES*
+
+👥 *GRUPOS*
+▸ ${p}menugrupo
+▸ ${p}linkgrupo
+▸ ${p}admins
+▸ ${p}regras
+
+💰 *ALUGUEL DO BOT*
+▸ ${p}alugarbot
+
+🎧 *MÚSICA*
+▸ ${p}play
+▸ ${p}playmp4
+▸ ${p}pesquisayt
+
+⚙️ *OUTROS*
+▸ ${p}ping
+
+> Digite ${p}alugarbot para ver os planos de aluguel.`
+
+    if (personalizado.photo) {
+      try {
+        const foto = await readFile(personalizado.photo)
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: foto,
+            caption: texto,
+          },
+          { quoted: message }
+        )
+
+        return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
+      }
+    }
+
+    await reply(texto)
+  },
+}
+
+export const aluguelBotCommand = {
+  name: 'alugarbot',
+  aliases: ['aluguelbot', 'planosbot', 'planos'],
+  description: 'Exibe os planos de aluguel do bot.',
+
+  async execute({ reply }) {
+    return reply(aluguelTexto)
+  },
+}

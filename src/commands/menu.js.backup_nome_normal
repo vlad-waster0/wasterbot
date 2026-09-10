@@ -1,0 +1,264 @@
+import { config } from '../config.js'
+import { getDatabase } from '../database.js'
+import { readFile } from 'node:fs/promises'
+
+
+const MAPAS_FONTE_MENU = {
+  negrito: {
+    upper: '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙',
+    lower: '𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳',
+    digits: '𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗',
+  },
+  italico: {
+    upper: '𝐴𝐵𝐶𝐷𝐸𝐹𝐺𝐻𝐼𝐽𝐾𝐿𝑀𝑁𝑂𝑃𝑄𝑅𝑆𝑇𝑈𝑉𝑊𝑋𝑌𝑍',
+    lower: '𝑎𝑏𝑐𝑑𝑒𝑓𝑔ℎ𝑖𝑗𝑘𝑙𝑚𝑛𝑜𝑝𝑞𝑟𝑠𝑡𝑢𝑣𝑤𝑥𝑦𝑧',
+    digits: '0123456789',
+  },
+  manuscrita: {
+    upper: '𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵',
+    lower: '𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏',
+    digits: '0123456789',
+  },
+  medieval: {
+    upper: '𝔄𝔅ℭ𝔇𝔈𝔉𝔊ℌℑ𝔍𝔎𝔏𝔐𝔑𝔒𝔓𝔔ℜ𝔖𝔗𝔘𝔙𝔚𝔛𝔜ℨ',
+    lower: '𝔞𝔟𝔠𝔡𝔢𝔣𝔤𝔥𝔦𝔧𝔨𝔩𝔪𝔫𝔬𝔭𝔮𝔯𝔰𝔱𝔲𝔳𝔴𝔵𝔶𝔷',
+    digits: '0123456789',
+  },
+  dupla: {
+    upper: '𝔸𝔹ℂ𝔻𝔼𝔽𝔾ℍ𝕀𝕁𝕂𝕃𝕄ℕ𝕆ℙℚℝ𝕊𝕋𝕌𝕍𝕎𝕏𝕐ℤ',
+    lower: '𝕒𝕓𝕔𝕕𝕖𝕗𝕘𝕙𝕚𝕛𝕜𝕝𝕞𝕟𝕠𝕡𝕢𝕣𝕤𝕥𝕦𝕧𝕨𝕩𝕪𝕫',
+    digits: '𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡',
+  },
+  monospace: {
+    upper: '𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉',
+    lower: '𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣',
+    digits: '𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿',
+  },
+}
+
+function aplicarFonteMenu(texto, fonte) {
+  if (!texto || fonte === 'normal' || !MAPAS_FONTE_MENU[fonte]) return texto
+
+  const mapa = MAPAS_FONTE_MENU[fonte]
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
+  const digits = '0123456789'
+
+  return Array.from(String(texto)).map((c) => {
+    let i = upper.indexOf(c)
+    if (i >= 0) return Array.from(mapa.upper)[i] || c
+
+    i = lower.indexOf(c)
+    if (i >= 0) return Array.from(mapa.lower)[i] || c
+
+    i = digits.indexOf(c)
+    if (i >= 0) return Array.from(mapa.digits)[i] || c
+
+    return c
+  }).join('')
+}
+
+const aluguelTexto = `🤖 *ALUGUE SEU BOT*
+
+💰 *PLANOS MENSAIS*
+
+1️⃣ *Bot de figurinhas para WhatsApp no Privado*
+💵 R$ 4,00/mês
+
+2️⃣ *BOT 0-50 MEMBROS*
+💵 R$ 14,00/mês
+
+3️⃣ *BOT 50-300 MEMBROS*
+💵 R$ 19,00/mês
+
+4️⃣ *BOT 300-600 MEMBROS*
+💵 R$ 24,00/mês
+
+5️⃣ *BOT PERSONALIZADO*
+💵 R$ 28,00/mês
+
+6️⃣ *BOT +600 MEMBROS*
+💵 R$ 33,00/mês
+
+🎁 *PRIMEIRA ASSINATURA*
+Você ganha *+10 dias* de uso.
+
+📲 *Para contratar:*
+https://wa.me/31996149100
+
+📞 *Contato:* 31996149100`
+
+export const menuCommand = {
+  name: 'menu',
+  aliases: ['help', 'comandos'],
+  description: 'Exibe o menu principal.',
+
+  async execute({ reply, message, sock }) {
+    const p = config.prefix
+    const nome = message.pushName || 'usuário'
+
+    const hora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    })
+
+    const db = await getDatabase()
+    const fonteConfigurada = db.data.settings?.fonte || 'normal'
+    const groupJid = message.key.remoteJid
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+
+    const emoji = personalizado.emoji || '🦇🩸'
+    const segueEmoji = personalizado.segueEmoji ?? '📸'
+    const siteEmoji = personalizado.siteEmoji ?? '📲'
+    const segue = String(personalizado.segue ?? '@waster.shop').replace(/^(?:📸\s*)?Segue:\s*/i, '')
+    const site = String(personalizado.site ?? 'lojawaster.shop').replace(/^(?:📲\s*)?Site:\s*/i, '')
+    const horaAtual = Number(new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' }).format(new Date()))
+    let saudacao = '🌙 Boa noite'
+    if (horaAtual >= 5 && horaAtual < 12) saudacao = '🌅 Bom dia'
+    else if (horaAtual >= 12 && horaAtual < 18) saudacao = '☀️ Boa tarde'
+
+    const texto = `╭━━━━ ◦ ❖ ◦ ━━━━━╮
+     ${emoji} ${personalizado.botName || config.botName} ${emoji}
+╰━━━━ ◦ ❖ ◦ ━━━━━╯
+${segue ? `${segueEmoji} Segue: ${segue}\n` : ""}${site ? `${siteEmoji} Site: ${site}\n` : ""}
+
+- ${saudacao} ${nome}, são ${hora}
+
+🎨 *FIGURINHAS*
+▸ ${p}sticker
+                                                   ▸ ${p}sgif — GIF → figurinha animada
+▸ ${p}semvisualizar
+▸ ${p}toimg
+▸ ${p}renomearfig Novo Nome
+
+📥 *DOWNLOADS*
+▸ ${p}menubaixar
+
+🛡️ *ADMINISTRAÇÃO & SEGURANÇA*
+▸ ${p}menuadm
+▸ ${p}expulsar
+▸ ${p}adicionar
+▸ ${p}lista_negra
+▸ ${p}mute
+▸ ${p}desmute
+▸ ${p}promover
+▸ ${p}rebaixar
+▸ ${p}advertir
+▸ ${p}advertencias
+▸ ${p}removeradvertencia
+▸ ${p}bemvindo
+▸ ${p}antilink
+▸ ${p}antipalavra
+▸ ${p}mencionar
+▸ ${p}reportar
+
+💎 *PREMIUM*
+▸ ${p}menupremium
+▸ ${p}alterarnome
+▸ ${p}alterarfoto
+
+👑 *DONO*
+▸ ${p}menudono
+
+  🎮 *JOGOS*
+  ▸ ${p}menujogos
+  ▸ ${p}oqueeoque
+  ▸ ${p}caracoroa quantidade
+  ▸ ${p}forca
+  ▸ ${p}moeda
+  ▸ ${p}ppp
+  ▸ ${p}menugold
+  ▸ ${p}jogodavelha
+  ▸ ${p}quiz
+
+  😂 *BRINCADEIRAS*
+  ▸ ${p}menubrincadeiras
+  ▸ ${p}aura @pessoa
+  ▸ ${p}rankgay
+  ▸ ${p}adotar @pessoa tipo
+  ▸ ${p}arvore
+  ▸ ${p}mentiroso @pessoa
+  ▸ ${p}mentirosa @pessoa
+  ▸ ${p}corno @pessoa
+  ▸ ${p}corna @pessoa
+  ▸ ${p}lindo @pessoa
+  ▸ ${p}linda @pessoa
+  ▸ ${p}feio @pessoa
+  ▸ ${p}feia @pessoa
+  ▸ ${p}casar @pessoa
+  ▸ ${p}abraco @pessoa
+  ▸ ${p}beijo @pessoa
+  ▸ ${p}chute @pessoa
+  ▸ ${p}tapa @pessoa
+  ▸ ${p}travesseirada @pessoa
+  ▸ ${p}calvo @pessoa
+  ▸ ${p}gay @pessoa
+  ▸ ${p}morder @pessoa
+  ▸ ${p}carinho @pessoa
+
+  👤 *PERFIL & RELACIONAMENTO*
+▸ ${p}menuperfil
+▸ ${p}perfil
+▸ ${p}checkativo
+▸ ${p}menurelacionamento
+▸ ${p}namorar
+▸ ${p}terminar
+▸ ${p}statusrelacionamento
+
+
+📊 *INFORMAÇÕES*
+
+👥 *GRUPOS*
+▸ ${p}menugrupo
+▸ ${p}linkgrupo
+▸ ${p}admins
+▸ ${p}regras
+
+💰 *ALUGUEL DO BOT*
+▸ ${p}alugarbot
+
+🎧 *MÚSICA*
+▸ ${p}play
+▸ ${p}playmp4
+▸ ${p}pesquisayt
+
+⚙️ *OUTROS*
+▸ ${p}ping
+
+> Digite ${p}alugarbot para ver os planos de aluguel.`
+
+    if (personalizado.photo) {
+      try {
+        const foto = await readFile(personalizado.photo)
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: foto,
+            caption: aplicarFonteMenu(texto, fonteConfigurada),
+          },
+          { quoted: message }
+        )
+
+        return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
+      }
+    }
+
+    await reply(texto)
+  },
+}
+
+export const aluguelBotCommand = {
+  name: 'alugarbot',
+  aliases: ['aluguelbot', 'planosbot', 'planos'],
+  description: 'Exibe os planos de aluguel do bot.',
+
+  async execute({ reply }) {
+    return reply(aluguelTexto)
+  },
+}

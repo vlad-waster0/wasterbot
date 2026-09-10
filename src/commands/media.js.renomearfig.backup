@@ -1,0 +1,210 @@
+import sharp from 'sharp'
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
+
+function getQuoted(message) {
+  return message?.message?.extendedTextMessage?.contextInfo?.quotedMessage || null
+}
+
+function getMediaMessage(message) {
+  if (!message) return null
+
+  if (message.imageMessage) return message.imageMessage
+
+  if (message.viewOnceMessage?.message?.imageMessage) {
+    return message.viewOnceMessage.message.imageMessage
+  }
+
+  if (message.viewOnceMessageV2?.message?.imageMessage) {
+    return message.viewOnceMessageV2.message.imageMessage
+  }
+
+  if (message.viewOnceMessageV2Extension?.message?.imageMessage) {
+    return message.viewOnceMessageV2Extension.message.imageMessage
+  }
+
+  return null
+}
+
+function unwrapQuoted(message) {
+  const quoted = getQuoted(message)
+  if (!quoted) return null
+
+  return {
+    raw: quoted,
+    media: getMediaMessage(quoted)
+  }
+}
+
+async function baixarMidia(sock, message, media) {
+  return await downloadMediaMessage(
+    {
+      key: message.key,
+      message: {
+        imageMessage: media
+      }
+    },
+    'buffer',
+    {},
+    {
+      logger: undefined,
+      reuploadRequest: sock.updateMediaMessage
+    }
+  )
+}
+
+export const mediaCommands = [
+  {
+    name: 'sticker',
+    description: 'Transforma uma foto em figurinha.',
+    async execute({ sock, message, reply }) {
+      const alvo = unwrapQuoted(message)
+
+      if (!alvo?.media) {
+        return reply(
+          '❌ Responda a uma foto normal ou a uma foto de visualização única com o comando sticker.'
+        )
+      }
+
+      try {
+        const buffer = await baixarMidia(sock, message, alvo.media)
+
+        const webp = await sharp(buffer)
+          .resize(512, 512, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .webp()
+          .toBuffer()
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          { sticker: webp },
+          { quoted: message }
+        )
+      } catch (error) {
+        console.error('ERRO AO CRIAR FIGURINHA:', error)
+        await reply('❌ Não consegui transformar essa foto em figurinha.')
+      }
+    }
+  },
+
+  {
+    name: 'semvisualizar',
+    aliases: ['semvisualização', 'normalizarfoto', 'verfoto'],
+    description: 'Reenvia uma foto de visualização única como foto normal.',
+    async execute({ sock, message, reply }) {
+      const alvo = unwrapQuoted(message)
+
+      if (!alvo?.media) {
+        return reply(
+          '❌ Responda a uma foto de visualização única com o comando semvisualizar.'
+        )
+      }
+
+      try {
+        const buffer = await baixarMidia(sock, message, alvo.media)
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: buffer,
+            caption: '📸 Foto enviada normalmente.'
+          },
+          { quoted: message }
+        )
+      } catch (error) {
+        console.error('ERRO AO REMOVER VISUALIZAÇÃO ÚNICA:', error)
+        await reply('❌ Não consegui recuperar essa foto.')
+      }
+    }
+  },
+
+  {
+    name: "toimg",
+    aliases: ["toimage", "imagem"],
+    description: "Converte uma figurinha em imagem.",
+    async execute({ sock, message, reply }) {
+      const contexto = message.message?.extendedTextMessage?.contextInfo
+      const quoted = contexto?.quotedMessage
+      const sticker = quoted?.stickerMessage
+
+      if (!sticker) return reply("❌ Responda a uma figurinha com o comando !toimg.")
+
+      try {
+        const buffer = await downloadMediaMessage(
+          {
+            key: {
+              remoteJid: message.key.remoteJid,
+              id: contexto.stanzaId,
+              participant: contexto.participant,
+            },
+            message: { stickerMessage: sticker },
+          },
+          "buffer",
+          {},
+          { logger: undefined, reuploadRequest: sock.updateMediaMessage }
+        )
+
+        const imagem = await sharp(buffer).jpeg({ quality: 95 }).toBuffer()
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: imagem,
+            caption: "🖼️ Figurinha convertida em imagem.",
+          },
+          { quoted: message }
+        )
+      } catch (error) {
+        console.error("ERRO AO CONVERTER FIGURINHA:", error)
+        return reply("❌ Não foi possível converter essa figurinha em imagem.")
+      }
+    },
+  },
+
+  {
+    name: 'gif',
+    description: 'Envia um vídeo respondido como GIF.',
+    async execute({ sock, message, reply }) {
+      const quoted = getQuoted(message)
+      const target =
+        quoted?.videoMessage ||
+        quoted?.viewOnceMessage?.message?.videoMessage ||
+        quoted?.viewOnceMessageV2?.message?.videoMessage
+
+      if (!target) {
+        return reply('❌ Responda a um vídeo com o comando gif.')
+      }
+
+      try {
+        const buffer = await downloadMediaMessage(
+          {
+            key: message.key,
+            message: {
+              videoMessage: target
+            }
+          },
+          'buffer',
+          {},
+          {
+            logger: undefined,
+            reuploadRequest: sock.updateMediaMessage
+          }
+        )
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            video: buffer,
+            gifPlayback: true,
+            caption: '🎬 GIF convertido'
+          },
+          { quoted: message }
+        )
+      } catch (error) {
+        console.error('ERRO AO CONVERTER GIF:', error)
+        await reply('❌ Não consegui converter esse vídeo em GIF.')
+      }
+    }
+  }
+]

@@ -1,0 +1,538 @@
+import { config } from '../config.js'
+import { getDatabase } from '../database.js'
+import { readFile } from 'node:fs/promises'
+
+const aluguelTexto = `🤖 *ALUGUE SEU BOT*
+
+💰 *PLANOS MENSAIS*
+1️⃣ *Bot de figurinhas para WhatsApp no Privado*
+💵 R$ 4,00/mês
+2️⃣ *BOT 0-50 MEMBROS*
+💵 R$ 14,00/mês
+3️⃣ *BOT 50-300 MEMBROS*
+💵 R$ 19,00/mês
+4️⃣ *BOT 300-600 MEMBROS*
+💵 R$ 24,00/mês
+5️⃣ *BOT PERSONALIZADO*
+💵 R$ 28,00/mês
+6️⃣ *BOT +600 MEMBROS*
+💵 R$ 33,00/mês
+
+🎁 *PRIMEIRA ASSINATURA*
+Você ganha *+10 dias* de uso.
+
+📲 *Para contratar:*
+https://wa.me/31996149100
+
+📞 *Contato:* 31996149100`
+
+const estilos = {
+
+  1: {
+    topo: `╭━━━━ ◦ ❖ ◦ ━━━━━╮`,
+    topo2: `╰━━━━ ◦ ❖ ◦ ━━━━━╯`,
+    linha: `━━━━━━━━━━━━━━━━━━━━`,
+    emoji: `🦇`,
+    titulo: `WASTER BOT`,
+    secao: `✦`,
+    final: `╰━━━━━━━━━━━━━━━━━━━━╯`,
+  },
+
+  2: {
+    topo: `╭─ ୨୧ ───────────────── ୨୧ ─╮`,
+    topo2: `╰─ ୨୧ ───────────────── ୨୧ ─╯`,
+    linha: `୨୧ ───────────────── ୨୧`,
+    emoji: `🦇`,
+    titulo: `𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕`,
+    secao: `୨୧`,
+    final: `╰─ ୨୧ ───────────────── ୨୧ ─╯`,
+  },
+
+  3: {
+    topo: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+    topo2: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+    linha: `✦•┈๑⋅⋯ ⋯⋅๑┈•✦`,
+    emoji: `🦇`,
+    titulo: `𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕`,
+    secao: `୭˚. ᵎᵎ`,
+    final: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+  },
+
+  4: {
+    topo: `╭━━━◈━━━━━━━━━━━━◈━━━╮`,
+    topo2: `╰━━━◈━━━━━━━━━━━━◈━━━╯`,
+    linha: `┣━━━━━━━━━━━━━━━━━━━━┫`,
+    emoji: `🦇`,
+    titulo: `*WASTER BOT*`,
+    secao: `┃`,
+    final: `╰━━━━━━━━━━━━━━━━━━━━╯`,
+  },
+
+  5: {
+    topo: `╭━━━━ ◦ ❖ ◦ ━━━━━╮`,
+    topo2: `╰━━━━ ◦ ❖ ◦ ━━━━━╯`,
+    linha: `🩸━━━━━━━━━━━━━━━━━━━━━━━━━━━🩸`,
+    emoji: `🦇`,
+    titulo: `Waster Bot`,
+    secao: `🩸`,
+    final: `🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸`,
+  },
+
+  6: {
+    topo: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+    topo2: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+    linha: `꧁༺━━━━━━━━━━━━༻꧂`,
+    emoji: `💜🦇`,
+    titulo: `𝑾𝑨𝑺𝑻𝑬𝑹 𝑩𝑶𝑻`,
+    secao: `༺`,
+    final: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+  },
+}
+
+const categorias = [
+  {
+    titulo: `🎨 *FIGURINHAS*`,
+    comandos: [
+      'sticker',
+      'semvisualizar',
+      'toimg',
+      'renomearfig Novo Nome',
+      'gif',
+      'sgif',
+      's',
+      'p',
+    ],
+  },
+
+  {
+    titulo: `📥 *DOWNLOADS*`,
+    comandos: [
+      'instagram link',
+      'instagrammp3 link',
+      'tiktok link',
+      'tomp3 link',
+      'play nome da música',
+      'playmp4 nome do vídeo',
+      'pesquisayt nome',
+    ],
+  },
+
+  {
+    titulo: `🎮 *JOGOS*`,
+    comandos: [
+      'caracoroa quantidade',
+      'oqueeoque',
+      'moeda',
+      'dado',
+      'quiz',
+      'forca',
+      'adivinhar',
+      'detetive',
+      'maioroumenor',
+      'parouimpar',
+      'verdadeoudesafio',
+      'paises',
+      'estados',
+      'capitais',
+      'bandeiras',
+      'futebol',
+      'matematica',
+      'animais',
+      'espaco',
+      'ciencia',
+      'conhecimentos',
+      'filmes',
+      'musica',
+      'comida',
+      'charadas',
+      'animaisrapidos',
+      'historia',
+      'tecnologia',
+      'portugues',
+      'cultura',
+      'numero',
+      'embaralhada',
+      'verdadeiro',
+      'jackpot',
+      'copadomundo',
+      'quemganha',
+      'jogos',
+    ],
+  },
+
+  {
+    titulo: `🎉 *BRINCADEIRAS*`,
+    comandos: [
+      'aura @pessoa',
+      'rankgay',
+      'adotar @pessoa tipo',
+      'arvore',
+      'mentiroso @pessoa',
+      'mentirosa @pessoa',
+      'corno @pessoa',
+      'corna @pessoa',
+      'lindo @pessoa',
+      'linda @pessoa',
+      'feio @pessoa',
+      'feia @pessoa',
+      'casar @pessoa',
+      'abraço @pessoa',
+      'beijo @pessoa',
+      'tapa @pessoa',
+      'travesseirada @pessoa',
+      'chute @pessoa',
+      'morder @pessoa',
+      'carinho @pessoa',
+      'gay @pessoa',
+      'calvo @pessoa',
+    ],
+  },
+
+  {
+    titulo: `👤 *PERFIL & RELACIONAMENTO*`,
+    comandos: [
+      'perfil',
+      'checkativo',
+      'rankingatividade',
+      'menurelacionamento',
+      'sim',
+      'não',
+      'namorar @pessoa',
+      'casar @pessoa',
+      'ship @pessoa',
+      'beijar @pessoa',
+      'terminar',
+      'statusrelacionamento',
+    ],
+  },
+
+  {
+    titulo: `👥 *GRUPOS & INFORMAÇÕES*`,
+    comandos: [
+      'menugrupo',
+      'linkgrupo',
+      'admins',
+      'regras',
+      'horariogrupo',
+      'patenteff',
+    ],
+  },
+
+  {
+    titulo: `💰 *ALUGUEL*`,
+    comandos: [
+      'alugarbot',
+    ],
+  },
+
+  {
+    titulo: `⚙️ *OUTROS*`,
+    comandos: [
+      'ping',
+      'tagall',
+      'mencionar',
+      'reportar',
+    ],
+  },
+]
+
+function normalizarLinha(personalizado, estilo) {
+  if (personalizado?.linhaMenu) {
+    return personalizado.linhaMenu
+  }
+  return estilos[estilo].linha
+}
+
+function montarSecao(visual, titulo, comandos, p) {
+  const linha = comandos
+    .map(c => `▸ ${p}${c}`)
+    .join('\n')
+
+  return `${visual.secao} ${titulo}\n${linha}`
+}
+
+function montarMenu(estilo, personalizado, nome, hora, p) {
+  const visual = estilos[estilo]
+  const linha = normalizarLinha(personalizado, estilo)
+
+  const site1 = personalizado?.site1 || 'wasterbot.site'
+  const site2 = personalizado?.site2 || 'lojawaster.shop'
+
+  const botNome = personalizado?.botName || config.botName
+
+  const horaAtual = Number(
+    new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    }).format(new Date())
+  )
+
+  let saudacao = '🌙 Boa noite'
+
+  if (horaAtual >= 5 && horaAtual < 12) {
+    saudacao = '🌅 Bom dia'
+  } else if (horaAtual >= 12 && horaAtual < 18) {
+    saudacao = '☀️ Boa tarde'
+  }
+
+  const partes = []
+
+  partes.push(visual.topo)
+  partes.push(`${visual.emoji} ${botNome} ${visual.emoji}`)
+  partes.push(visual.topo2)
+  partes.push(`🌐 Site: ${site1}`)
+  partes.push(`🌐 Site: ${site2}`)
+  partes.push('')
+  partes.push(`- ${saudacao} ${nome}, são ${hora}`)
+  partes.push('')
+  partes.push(linha)
+
+  for (const categoria of categorias) {
+    partes.push('')
+    partes.push(montarSecao(
+      visual,
+      categoria.titulo,
+      categoria.comandos,
+      p
+    ))
+  }
+
+  partes.push('')
+  partes.push(linha)
+  partes.push('')
+  partes.push(`🛡️ *ADMINISTRAÇÃO & SEGURANÇA*`)
+  partes.push(`▸ ${p}menuadm`)
+
+  partes.push('')
+  partes.push(`💎 *PREMIUM*`)
+  partes.push(`▸ ${p}menupremium`)
+
+  partes.push('')
+  partes.push(`👑 *DONO*`)
+  partes.push(`▸ ${p}menudono`)
+
+  partes.push('')
+  partes.push(linha)
+  partes.push(`> Digite ${p}alugarbot para ver os planos de aluguel.`)
+  partes.push(visual.final)
+
+  return partes.join('\n')
+}
+
+async function salvarEstilo(groupJid, estilo) {
+  const db = await getDatabase()
+
+  db.data.groups[groupJid] ||= {}
+  db.data.groups[groupJid].menu ||= {}
+
+  db.data.groups[groupJid].menu.estilo = estilo
+
+  await db.write()
+}
+
+function obterEstilo(db, groupJid) {
+  const valor = Number(db.data.groups[groupJid]?.menu?.estilo || 1)
+
+  if (valor < 1 || valor > 6) {
+    return 1
+  }
+
+  return valor
+}
+
+export const menuCommand = {
+  name: 'menu',
+  aliases: ['help', 'comandos'],
+
+  description: 'Exibe o menu principal.',
+
+  async execute({ reply, message, sock }) {
+    const p = config.prefix
+    const nome = message.pushName || 'usuário'
+
+    const hora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    })
+
+    const db = await getDatabase()
+    const groupJid = message.key.remoteJid
+
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+
+    const estilo = groupJid?.endsWith('@g.us')
+      ? obterEstilo(db, groupJid)
+      : 1
+
+    const texto = montarMenu(
+      estilo,
+      personalizado,
+      nome,
+      hora,
+      p
+    )
+
+    if (personalizado.photo) {
+      try {
+        const foto = await readFile(personalizado.photo)
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: foto,
+            caption: texto,
+          },
+          { quoted: message }
+        )
+
+        return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
+      }
+    }
+
+    await reply(texto)
+  },
+}
+
+function criarComandoEstilo(numero) {
+  return {
+    name: `menu${numero}`,
+
+    aliases: [],
+
+    description: `Seleciona o Menu ${numero} neste grupo.`,
+
+    async execute({ reply, message }) {
+      const groupJid = message?.key?.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      await salvarEstilo(groupJid, numero)
+
+      return reply(
+        `✅ *MENU ${numero} ATIVADO NESTE GRUPO!*\n\n` +
+        `Agora este grupo usará o estilo ${numero} sempre que alguém usar ${config.prefix}menu.`
+      )
+    },
+  }
+}
+
+export const menu1Command = criarComandoEstilo(1)
+export const menu2Command = criarComandoEstilo(2)
+export const menu3Command = criarComandoEstilo(3)
+export const menu4Command = criarComandoEstilo(4)
+export const menu5Command = criarComandoEstilo(5)
+export const menu6Command = criarComandoEstilo(6)
+
+function criarComandoLinha(numero) {
+  return {
+    name: `mudarmenu${numero}`,
+
+    aliases: [],
+
+    description: `Altera a linha decorativa do Menu ${numero}.`,
+
+    async execute({ reply, message, args, textoCompleto }) {
+      const groupJid = message?.key?.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      const db = await getDatabase()
+
+      db.data.groups[groupJid] ||= {}
+      db.data.groups[groupJid].menu ||= {}
+
+      const atual = obterEstilo(db, groupJid)
+
+      if (atual !== numero) {
+        return reply(
+          `❌ Este grupo está usando o *Menu ${atual}*.\n\n` +
+          `Para alterar o Menu ${numero}, primeiro use:\n` +
+          `▸ ${config.prefix}menu${numero}`
+        )
+      }
+
+      const linha = String(textoCompleto || '').trim()
+
+      if (!linha) {
+        return reply(
+          `❌ Envie a linha depois do comando.\n\n` +
+          `Exemplo:\n` +
+          `${config.prefix}mudarmenu${numero} ═══════════════`
+        )
+      }
+
+      if (linha.length > 300) {
+        return reply('❌ A linha é muito grande. Use no máximo 300 caracteres.')
+      }
+
+      db.data.groups[groupJid].menu.linhaMenu = linha
+
+      await db.write()
+
+      return reply(
+        `✅ *LINHA DO MENU ${numero} ALTERADA!*\n\n` +
+        `${linha}\n\n` +
+        `A alteração vale somente para este grupo.`
+      )
+    },
+  }
+}
+
+export const mudarMenu1Command = criarComandoLinha(1)
+export const mudarMenu2Command = criarComandoLinha(2)
+export const mudarMenu3Command = criarComandoLinha(3)
+export const mudarMenu4Command = criarComandoLinha(4)
+export const mudarMenu5Command = criarComandoLinha(5)
+export const mudarMenu6Command = criarComandoLinha(6)
+
+export const editarEmojiCommand = {
+  name: 'editaremoji',
+
+  aliases: [],
+
+  description: 'Personaliza os emojis do menu através de uma mensagem respondida.',
+
+  async execute({ reply, message }) {
+    const groupJid = message?.key?.remoteJid
+
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    const db = await getDatabase()
+
+    db.data.groups[groupJid] ||= {}
+    db.data.groups[groupJid].menu ||= {}
+
+    const estilo = obterEstilo(db, groupJid)
+
+    return reply(
+      `🎨 *PERSONALIZAÇÃO DO MENU ${estilo}*\n\n` +
+      `Para esta etapa, responda a uma mensagem do seu menu usando:\n\n` +
+      `▸ ${config.prefix}editaremoji\n\n` +
+      `⚠️ A personalização ficará salva somente neste grupo.`
+    )
+  },
+}
+
+export const aluguelBotCommand = {
+  name: 'alugarbot',
+
+  aliases: ['aluguelbot', 'planosbot', 'planos'],
+
+  description: 'Exibe os planos de aluguel do bot.',
+
+  async execute({ reply }) {
+    return reply(aluguelTexto)
+  },
+}

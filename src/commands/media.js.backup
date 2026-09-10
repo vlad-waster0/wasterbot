@@ -1,0 +1,30 @@
+import sharp from 'sharp'
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
+
+function quoted(message) {
+  return message.message?.extendedTextMessage?.contextInfo?.quotedMessage || message.message
+}
+
+export const mediaCommands = [
+  {
+    name: 'sticker',
+    description: 'Converte imagem respondida em figurinha.',
+    async execute({ sock, message, reply }) {
+      const target = quoted(message)
+      if (!target?.imageMessage) return reply('Responda a uma imagem com o comando sticker.')
+      const buffer = await downloadMediaMessage({ message: target }, 'buffer', {})
+      const webp = await sharp(buffer).resize(512, 512, { fit: 'inside' }).webp().toBuffer()
+      await sock.sendMessage(message.key.remoteJid, { sticker: webp }, { quoted: message })
+    },
+  },
+  {
+    name: 'gif',
+    description: 'Envia um vídeo respondido como GIF.',
+    async execute({ sock, message, reply }) {
+      const target = quoted(message)
+      if (!target?.videoMessage) return reply('Responda a um vídeo com o comando gif.')
+      const buffer = await downloadMediaMessage({ message: target }, 'buffer', {})
+      await sock.sendMessage(message.key.remoteJid, { video: buffer, gifPlayback: true, caption: 'GIF convertido' }, { quoted: message })
+    },
+  },
+]

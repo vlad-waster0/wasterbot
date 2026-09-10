@@ -1,0 +1,39 @@
+import { hasPermission } from '../permissions.js'
+import { getDatabase } from '../database.js'
+
+export const premiumMenuCommand = {
+  name: 'menupremium',
+  aliases: ['premium'],
+  description: 'Exibe os comandos Premium.',
+
+  async execute({ reply, sender, message }) {
+    if (!(await hasPermission(sender, 'premium'))) {
+      return reply('❌ Este menu é exclusivo para usuários Premium.')
+    }
+
+    const groupJid = message?.key?.remoteJid
+    const db = await getDatabase()
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+    const botName = personalizado.botName || 'Waster Bot'
+
+    await reply(`╭━━━━━━「 💎 PREMIUM 💎 」━━━━━━╮
+
+💎 *RECURSOS PREMIUM*
+
+🤖 *PERSONALIZAÇÃO DO BOT*
+▸ !alterarnome <novo nome>
+▸ !alterarfoto (responda uma foto)
+
+🎮 *RECURSOS EXCLUSIVOS*
+▸ !menugold
+▸ !ranking
+▸ !level
+
+✨ Usuário Premium possui acesso aos
+recursos Premium do ${botName}.
+
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯`)
+  },
+}

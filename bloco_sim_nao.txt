@@ -1,0 +1,119 @@
+  { name: 'sim',
+    aliases: ['aceitar', 'aceito'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const citado = textoCitado(message)
+
+      if (!citado) {
+        return reply(
+          '💌 Responda diretamente ao pedido de namoro com *!sim*.'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const encontrado = encontrarPedidoPara(db, remetente)
+
+      if (!encontrado) {
+        return reply('❌ Não encontrei um pedido de namoro para você.')
+      }
+
+      const { key, pedido } = encontrado
+
+      if (
+        !citado.includes('PEDIDO DE NAMORO') &&
+        !citado.includes('!sim')
+      ) {
+        return reply(
+          '❌ Essa não parece ser a mensagem do pedido de namoro.'
+        )
+      }
+
+      db.data.relationships[pedido.from] = {
+        status: 'namorando',
+        parceiro: pedido.to,
+        desde: Date.now(),
+      }
+
+      db.data.relationships[pedido.to] = {
+        status: 'namorando',
+        parceiro: pedido.from,
+        desde: Date.now(),
+      }
+
+      delete db.data.relationships.pending[key]
+      await db.write()
+
+      const from = `@${numero(pedido.from)}`
+      const to = `@${numero(pedido.to)}`
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: `💖 *NAMORO ACEITO!*
+
+🥰 ${to} aceitou o pedido de ${from}!
+
+❤️ Agora vocês estão oficialmente namorando!
+
+💑 Que esse relacionamento seja cheio de amor, carinho e felicidade! 💕`,
+        mentions: [pedido.from, pedido.to],
+        nomeGif: 'namoroaceito',
+      })
+    },
+  },
+
+  {
+    name: 'não',
+    aliases: ['nao', 'recusar', 'recusei'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const citado = textoCitado(message)
+
+      if (!citado) {
+        return reply(
+          '💌 Responda diretamente ao pedido de namoro com *!não*.'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const encontrado = encontrarPedidoPara(db, remetente)
+
+      if (!encontrado) {
+        return reply('❌ Não encontrei um pedido de namoro para você.')
+      }
+
+      const { key, pedido } = encontrado
+
+      if (
+        !citado.includes('PEDIDO DE NAMORO') &&
+        !citado.includes('!sim')
+      ) {
+        return reply(
+          '❌ Essa não parece ser a mensagem do pedido de namoro.'
+        )
+      }
+
+      delete db.data.relationships.pending[key]
+      await db.write()
+
+      await enviarMidia({
+        sock,
+        message,
+        caption: `💔 *PEDIDO RECUSADO!*
+
+😢 @${numero(pedido.to)} não aceitou o pedido de @${numero(pedido.from)}.
+
+😂 Quem sabe na próxima! ❤️`,
+        mentions: [pedido.from, pedido.to],
+        nomeGif: 'namoronao',
+      })
+    },
+  },
+
+  {

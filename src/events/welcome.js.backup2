@@ -1,0 +1,38 @@
+import { getDatabase } from '../database.js'
+
+export function iniciarBoasVindas(sock) {
+  sock.ev.on('group-participants.update', async (update) => {
+    try {
+      if (update.action !== 'add') return
+
+      const db = await getDatabase()
+      const welcome = db.data.groups[update.id]?.welcome
+
+      if (!welcome?.enabled) return
+
+      for (const jid of update.participants || []) {
+        const nome = jid.split('@')[0]
+        const texto = `👋 Seja bem-vindo(a), @${nome}!
+
+🎉 É um prazer ter você no grupo!`
+
+        try {
+          const foto = await sock.profilePictureUrl(jid, 'image')
+
+          await sock.sendMessage(update.id, {
+            image: { url: foto },
+            caption: texto,
+            mentions: [jid],
+          })
+        } catch {
+          await sock.sendMessage(update.id, {
+            text: texto,
+            mentions: [jid],
+          })
+        }
+      }
+    } catch (error) {
+      console.error('ERRO NO BEM-VINDO:', error)
+    }
+  })
+}

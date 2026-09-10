@@ -1,0 +1,312 @@
+import { darGoldDiario } from './commands/gold.js'
+import { readFile } from 'node:fs/promises'
+const cooldowns = new Map()
+const antiFloodMap = new Map()
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys'
+import { iniciarBoasVindas } from './events/welcome.js'
+import { iniciarSaida } from './events/leave.js'
+import pino from 'pino'
+import qrcode from 'qrcode-terminal'
+import { config } from './config.js'
+import { isGroupAdmin } from './commands/admin.js'
+import { getDatabase, saveUser, setPrefix } from './database.js'
+import { estaNaListaNegra } from './commands/blacklist.js'
+import { commandMap } from './commands/index.js'
+import { deveBloquearLink } from './commands/antilink.js'
+import { deveBloquearPalavra } from './commands/antipalavra.js'
+import { enviarGifOuImagem } from './commands/gifs.js'
+import { registrarAtividade } from './commands/atividade.js'
+import { atividadeCommands } from './commands/atividade.js'
+import { iniciarAgendadorHorarios } from './horarioGrupo.js'
+
+const groupMetadataCache = new Map()
+async function startBot() {
+  await getDatabase()
+  const { state, saveCreds } = await useMultiFileAuthState('./auth_info')
+  const { version } = await fetchLatestBaileysVersion()
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: false,
+    logger: pino({ level: config.logLevel }),
+    cachedGroupMetadata: async (jid) => {
+      const cached = groupMetadataCache.get(jid)
+      return cached?.metadata || undefined
+    },
+  })
+  iniciarBoasVindas(sock)
+  iniciarSaida(sock)
+  iniciarAgendadorHorarios(sock)
+  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+    if (qr) qrcode.generate(qr, { small: true })
+    if (connection === 'connecting' && config.pairingNumber && !state.creds.registered) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        const code = await sock.requestPairingCode(config.pairingNumber)
+        console.log('Código de pareamento:', code)
+      } catch (error) {
+        console.error('Erro no código de pareamento:', error.message)
+      }
+    }
+    if (connection === 'open') console.log(`${config.botName} conectado.`)
+    if (connection === 'close') {
+      const code = lastDisconnect?.error?.output?.statusCode; console.log('CÓDIGO DE DESCONEXÃO:', code, 'ERRO:', lastDisconnect?.error?.message)
+      if (code !== DisconnectReason.loggedOut) startBot()
+      else console.log('Sessão encerrada. Remova auth_info e conecte novamente.')
+    }
+  })
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    const message = messages[0]
+    console.log("TEXTO RECEBIDO:", JSON.stringify(message?.message))
+    if (!message?.message || message.key.fromMe) return
+    console.log("🔑 KEY:", JSON.stringify(message?.key))
+    console.log("🔑 KEY:", JSON.stringify(message?.key))
+    const jid = message.key.remoteJid
+    const sender = message.key.participantAlt || message.key.participant || jid
+    const recebeuGoldDiario = await darGoldDiario(sender)
+    if (recebeuGoldDiario) {
+      await sock.sendMessage(jid, {
+        text: `👋 Olá @${sender.split("@")[0]}!\n🪙 Você recebeu 10 Gold pela sua primeira mensagem do dia!`,
+        mentions: [sender],
+      })
+    }
+    await registrarAtividade(message, 'mensagem')
+    const text = message.message.conversation || message.message.extendedTextMessage?.text || ''
+
+    // ANTI-FLOOD: 4 ou mais mensagens em menos de 10 segundos = expulsão
+    if (jid?.endsWith('@g.us')) {
+      const chaveFlood = `${jid}:${sender}`
+      const agoraFlood = Date.now()
+      const janelaFlood = 10 * 1000
+      const limiteFlood = 4
+
+      const ehDono = config.ownerNumbers.includes(String(sender || '').split('@')[0])
+      const ehAdmin = await isGroupAdmin(sock, jid, sender, message)
+
+      if (!ehDono && !ehAdmin) {
+        const historico = (antiFloodMap.get(chaveFlood) || [])
+          .filter((tempo) => agoraFlood - tempo < janelaFlood)
+
+        historico.push(agoraFlood)
+        antiFloodMap.set(chaveFlood, historico)
+
+        if (historico.length >= limiteFlood) {
+          antiFloodMap.delete(chaveFlood)
+
+          const numeroFlood = message.key.participantAlt || sender
+          const numeroExibicaoFlood = String(numeroFlood || '')
+            .split('@')[0]
+            .split(':')[0]
+
+          try {
+            await sock.sendMessage(jid, {
+              text:
+                `🚨 *ANTI-FLOOD ATIVADO!*
+
+` +
+                `👤 Usuário: @${numeroExibicaoFlood}
+` +
+                `⚠️ Foram detectadas *4 ou mais mensagens em menos de 10 segundos*.
+` +
+                `🔨 Ação: *BAN*`,
+              mentions: [numeroFlood],
+            })
+          } catch (error) {
+            console.error('ERRO AO AVISAR ANTI-FLOOD:', error)
+          }
+
+          try {
+            await sock.groupParticipantsUpdate(jid, [numeroFlood], 'remove')
+          } catch (error) {
+            console.error('ERRO AO EXPULSAR POR ANTI-FLOOD:', error)
+          }
+
+          return
+        }
+      }
+    }
+    if (jid?.endsWith("@g.us") && await deveBloquearLink(sock, jid, sender, message, text)) {
+    try { await sock.sendMessage(jid, { delete: message.key }) } catch (error) { console.error("ERRO AO APAGAR LINK:", error) }
+    return
+  }
+
+  if (jid?.endsWith("@g.us") && await deveBloquearPalavra(sock, jid, sender, message, text)) {
+    const numeroReal = message.key.participantAlt || sender
+    const numeroExibicao = String(numeroReal || '').split('@')[0].split(':')[0]
+
+    try {
+      await sock.sendMessage(jid, {
+        text:
+          `🚫 *ANTI-PALAVRA*\\n\\n` +
+          `👤 Usuário: @${numeroExibicao}\\n` +
+          `⚠️ Palavra proibida detectada.\\n` +
+          `🔨 Ação: *BAN*`,
+        mentions: [numeroReal]
+      })
+    } catch (error) {
+      console.error("ERRO AO AVISAR ANTI-PALAVRA:", error)
+    }
+
+    try {
+      await sock.sendMessage(jid, { delete: message.key })
+    } catch (error) {
+      console.error("ERRO AO APAGAR PALAVRA:", error)
+    }
+
+    try {
+      await sock.groupParticipantsUpdate(jid, [numeroReal], 'remove')
+    } catch (error) {
+      console.error("ERRO AO EXPULSAR POR ANTI-PALAVRA:", error)
+    }
+
+    return
+  }
+
+  const tipoAtividade = message.message.stickerMessage ? 'figurinha' : (message.message.imageMessage || message.message.videoMessage || message.message.documentMessage ? 'midia' : null)
+    if (tipoAtividade) await registrarAtividade(message, tipoAtividade)
+    if (jid?.endsWith('@g.us')) { const dbMute = await getDatabase(); const muted = dbMute.data.groups[jid]?.muted || {}; if (muted[sender]) { try { await sock.sendMessage(jid, { delete: message.key }); } catch (error) { console.error('ERRO AO APAGAR MENSAGEM MUTADA:', error) } return } }
+      if (await estaNaListaNegra(sock, jid, sender, message)) {
+        try { await sock.sendMessage(jid, { delete: message.key }) } catch (error) { console.error('ERRO AO APAGAR MENSAGEM DA LISTA NEGRA:', error) }
+        return
+      }
+    if (jid.endsWith("@g.us") && text === "!menuadm") { const meta = await sock.groupMetadata(jid); console.log("👥 PARTICIPANTES:", JSON.stringify(meta.participants)); }
+    const db = await getDatabase()
+    const prefix = db.data.settings.prefix || config.prefix
+    console.log("🔤 TEXTO:", JSON.stringify(text), "PREFIXO:", JSON.stringify(prefix))
+
+    const reply = (content) =>
+      sock.sendMessage(jid, { text: content }, { quoted: message })
+
+    const contexto = message.message.extendedTextMessage?.contextInfo
+    const mencionados = contexto?.mentionedJid || []
+    const botJid = sock.user?.id || ''
+    const botLid = sock.user?.lid || ''
+
+    const normalizarJid = (id) => String(id || '').split('@')[0].split(':')[0]
+
+    const botFoiMencionado = mencionados.some(id => {
+      const a = normalizarJid(id)
+      const b = normalizarJid(botJid)
+      const c = normalizarJid(botLid)
+      return a && (a === b || a === c)
+    })
+
+    if (botFoiMencionado) {
+      return reply(`🤖 Ei! Não precisa me marcar 😅
+
+Por favor, não marque o bot nos comandos.
+Pode usar o comando normalmente sem marcar o bot. ❤️`)
+    }
+
+    if (text.trim().toLowerCase() === 'prefixo') {
+      return reply(`🔤 O prefixo do bot é: ${prefix}`)
+    }
+
+    
+    // ===== O QUE É, O QUE É — RESPOSTA DOS GRUPOS =====
+    if (jid?.endsWith('@g.us') && text.trim() && !text.startsWith(prefix)) {
+      const jogos = globalThis.__wasterOqueEOque || {}
+      const jogo = jogos[jid]
+
+      if (jogo?.ativo) {
+        const resposta = text
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+
+        const acertou = (jogo.respostas || []).some(r => {
+          const correta = String(r)
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+
+          return resposta === correta
+        })
+
+        if (acertou) {
+          jogo.ativo = false
+
+          const dbJogo = await getDatabase()
+          const vencedor = dbJogo.data.users[sender] || {}
+          vencedor.gold = Number(vencedor.gold || 0) + 10
+          dbJogo.data.users[sender] = { ...vencedor, jid: sender }
+          await dbJogo.write()
+
+          await sock.sendMessage(jid, {
+            text:
+              `🎉 *RESPOSTA CERTA!*\n\n` +
+              `🏆 @${sender.split('@')[0]} acertou primeiro!\n` +
+              `🧠 Resposta: *${jogo.respostas[0]}*\n\n` +
+              `🪙 Prêmio: *10 Gold*!\n` +
+              `💰 Gold agora: *${vencedor.gold}*`,
+            mentions: [sender],
+          })
+
+          delete jogos[jid]
+          globalThis.__wasterOqueEOque = jogos
+          return
+        }
+      }
+    }
+
+    if (!text.startsWith(prefix)) return
+
+    const [name, ...args] = text.slice(prefix.length).trim().split(/\s+/)
+    await registrarAtividade(message, 'comando')
+
+    const command = commandMap.get(name?.toLowerCase())
+    console.log("🔎 COMANDO:", name, "ENCONTRADO:", !!command)
+
+    if (!command) {
+      try {
+        const enviou = await enviarGifOuImagem({
+          sock,
+          jid,
+          message,
+          nome: name?.toLowerCase(),
+        })
+        if (enviou) return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR GIF/IMAGEM:', error)
+      }
+      return
+    }
+
+    const cooldownKey = `${sender}:${name.toLowerCase()}`
+    const now = Date.now()
+    const lastUsed = cooldowns.get(cooldownKey) || 0
+    const cooldown = Number(process.env.BOT_COOLDOWN_MS || 0)
+
+    if (now - lastUsed < cooldown) return
+
+    cooldowns.set(cooldownKey, now)
+    await saveUser(sender, { lastSeen: new Date().toISOString() })
+
+    try {
+      if (name.toLowerCase() === 'setprefix') {
+        await setPrefix(args[0] || prefix)
+        return reply(`Prefixo atualizado para ${args[0] || prefix}`)
+      }
+
+      await new Promise(resolve =>
+        setTimeout(resolve, Number(process.env.BOT_DELAY_MS || 0))
+      )
+
+      await command.execute({
+        sock,
+        message,
+        args,
+        sender,
+        reply,
+      })
+    } catch (error) {
+      console.error('ERRO AO EXECUTAR COMANDO:', error)
+      await reply(`Erro: ${error.message || 'não foi possível executar o comando.'}`)
+    }
+
+  })
+}
+
+startBot().catch((error) => { console.error(error); process.exit(1) })

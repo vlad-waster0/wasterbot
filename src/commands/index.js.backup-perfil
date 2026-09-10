@@ -1,0 +1,37 @@
+import { premiumMenuCommand } from './premium.js'
+import { menuCommand, aluguelBotCommand } from './menu.js'
+import { funCommands } from './fun.js'
+import { mediaCommands } from './media.js'
+import { groupCommands, addCommand, muteCommand, unmuteCommand } from './groups.js'
+import { adminMenuCommand } from './admin.js'
+import { goldCommands } from './gold.js'
+import { warningCommands } from './warnings.js'
+import { ownerCommands } from './owner.js'
+import { gifCommands } from './gifs.js'
+import { brincadeirasCommands } from './brincadeiras.js'
+import { adminGoldCommands } from './gold.js'
+
+export const commands = [
+  premiumMenuCommand,
+  menuCommand,
+  aluguelBotCommand,
+  ...funCommands,
+  ...mediaCommands,
+  ...groupCommands, addCommand, muteCommand, unmuteCommand,
+  ...goldCommands,
+  ...adminGoldCommands,
+  ...warningCommands,
+  ...ownerCommands,
+  ...gifCommands,
+  ...brincadeirasCommands,
+  adminMenuCommand,
+]
+
+export const commandMap = new Map(
+  commands.flatMap((command) => {
+    return [command.name, ...(command.aliases || [])].map((name) => [
+      name,
+      command,
+    ])
+  })
+)

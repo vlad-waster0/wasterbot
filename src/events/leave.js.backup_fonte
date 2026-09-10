@@ -1,0 +1,45 @@
+import { getDatabase } from '../database.js'
+
+export function iniciarSaida(sock) {
+  sock.ev.on('group-participants.update', async (update) => {
+    try {
+      if (update.action !== 'remove') return
+
+      const groupJid = update.id
+      const db = await getDatabase()
+      const leave = db.data.groups[groupJid]?.leave
+
+      if (!leave?.enabled) return
+
+      for (const participante of update.participants || []) {
+        try {
+          const lid = typeof participante === 'string'
+            ? participante
+            : participante?.id
+
+          const phoneNumber = typeof participante === 'object'
+            ? participante?.phoneNumber
+            : null
+
+          const mentionJid =
+            phoneNumber?.endsWith('@s.whatsapp.net')
+              ? phoneNumber
+              : lid
+
+          if (!mentionJid) continue
+
+          const numero = mentionJid.split('@')[0].split(':')[0]
+
+          await sock.sendMessage(groupJid, {
+            text: `👋 @${numero} saiu do grupo.`,
+            mentions: [mentionJid],
+          })
+        } catch (error) {
+          console.error('ERRO AO PROCESSAR SAÍDA:', error)
+        }
+      }
+    } catch (error) {
+      console.error('ERRO AO ENVIAR MENSAGEM DE SAÍDA:', error)
+    }
+  })
+}

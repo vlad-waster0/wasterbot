@@ -1,0 +1,94 @@
+import { readFile } from 'node:fs/promises'
+const cooldowns = new Map()
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys'
+import { iniciarBoasVindas } from './events/welcome.js'
+import pino from 'pino'
+import qrcode from 'qrcode-terminal'
+import { config } from './config.js'
+import { getDatabase, saveUser, setPrefix } from './database.js'
+import { commandMap } from './commands/index.js'
+import { enviarGifOuImagem } from './commands/gifs.js'
+import { registrarAtividade } from './commands/atividade.js'
+import { atividadeCommands } from './commands/atividade.js'
+
+async function startBot() {
+  await getDatabase()
+  const { state, saveCreds } = await useMultiFileAuthState('./auth_info')
+  const { version } = await fetchLatestBaileysVersion()
+  const sock = makeWASocket({ version, auth: state, printQRInTerminal: false, logger: pino({ level: config.logLevel }) })
+  iniciarBoasVindas(sock)
+  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+    if (qr) qrcode.generate(qr, { small: true })
+    if (connection === 'connecting' && config.pairingNumber && !state.creds.registered) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        const code = await sock.requestPairingCode(config.pairingNumber)
+        console.log('Código de pareamento:', code)
+      } catch (error) {
+        console.error('Erro no código de pareamento:', error.message)
+      }
+    }
+    if (connection === 'open') console.log(`${config.botName} conectado.`)
+    if (connection === 'close') {
+      const code = lastDisconnect?.error?.output?.statusCode; console.log('CÓDIGO DE DESCONEXÃO:', code, 'ERRO:', lastDisconnect?.error?.message)
+      if (code !== DisconnectReason.loggedOut) startBot()
+      else console.log('Sessão encerrada. Remova auth_info e conecte novamente.')
+    }
+  })
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    const message = messages[0]
+    console.log("TEXTO RECEBIDO:", JSON.stringify(message?.message))
+    if (!message?.message || message.key.fromMe) return
+    console.log("🔑 KEY:", JSON.stringify(message?.key))
+    console.log("🔑 KEY:", JSON.stringify(message?.key))
+    const jid = message.key.remoteJid
+    const sender = message.key.participantAlt || message.key.participant || jid
+    await registrarAtividade(message, 'mensagem')
+    const text = message.message.conversation || message.message.extendedTextMessage?.text || ''
+    const tipoAtividade = message.message.stickerMessage ? 'figurinha' : (message.message.imageMessage || message.message.videoMessage || message.message.documentMessage ? 'midia' : null)
+    if (tipoAtividade) await registrarAtividade(message, tipoAtividade)
+    if (jid?.endsWith('@g.us')) { const dbMute = await getDatabase(); const muted = dbMute.data.groups[jid]?.muted || {}; if (muted[sender]) { try { await sock.sendMessage(jid, { delete: message.key }); } catch (error) { console.error('ERRO AO APAGAR MENSAGEM MUTADA:', error) } return } }
+    if (jid.endsWith("@g.us") && text === "!menuadm") { const meta = await sock.groupMetadata(jid); console.log("👥 PARTICIPANTES:", JSON.stringify(meta.participants)); }
+    const db = await getDatabase()
+    const prefix = db.data.settings.prefix || config.prefix
+    console.log("🔤 TEXTO:", JSON.stringify(text), "PREFIXO:", JSON.stringify(prefix))
+    if (!text.startsWith(prefix)) return
+    const [name, ...args] = text.slice(prefix.length).trim().split(/\s+/)
+    await registrarAtividade(message, 'comando')
+    const command = commandMap.get(name?.toLowerCase())
+    console.log("🔎 COMANDO:", name, "ENCONTRADO:", !!command)
+    if (!command) {
+      try {
+        const enviou = await enviarGifOuImagem({
+          sock,
+          jid,
+          message,
+          nome: name?.toLowerCase(),
+        })
+
+        if (enviou) return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR GIF/IMAGEM:', error)
+      }
+
+      return
+    }
+    if (!command) return
+    const cooldownKey = `${sender}:${name.toLowerCase()}`
+    const now = Date.now()
+    const lastUsed = cooldowns.get(cooldownKey) || 0
+    const cooldown = Number(process.env.BOT_COOLDOWN_MS || 0)
+    if (now - lastUsed < cooldown) return
+    cooldowns.set(cooldownKey, now)
+    await saveUser(sender, { lastSeen: new Date().toISOString() })
+    const reply = (content) => sock.sendMessage(jid, { text: content }, { quoted: message })
+    try {
+      if (name.toLowerCase() === 'setprefix') { await setPrefix(args[0] || prefix); return reply(`Prefixo atualizado para ${args[0] || prefix}`) }
+      await new Promise(resolve => setTimeout(resolve, Number(process.env.BOT_DELAY_MS || 0)))
+      await command.execute({ sock, message, args, sender, reply })
+    } catch (error) { console.error(error); await reply(`Erro: ${error.message || 'não foi possível executar o comando.'}`) }
+  })
+}
+
+startBot().catch((error) => { console.error(error); process.exit(1) })

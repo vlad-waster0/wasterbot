@@ -1,0 +1,316 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { getDatabase } from '../database.js'
+
+const execFileAsync = promisify(execFile)
+
+function formatarDuracao(segundos) {
+  if (!Number.isFinite(Number(segundos))) return 'Desconhecida'
+
+  const total = Math.floor(Number(segundos))
+  const horas = Math.floor(total / 3600)
+  const minutos = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+
+  if (horas > 0) {
+    return `${horas}:${String(minutos).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
+
+  return `${minutos}:${String(secs).padStart(2, '0')}`
+}
+
+function formatarPublicado(data) {
+  if (!data || !/^\d{8}$/.test(data)) return 'data desconhecida'
+
+  const ano = Number(data.slice(0, 4))
+  const mes = Number(data.slice(4, 6)) - 1
+  const dia = Number(data.slice(6, 8))
+
+  const publicado = new Date(Date.UTC(ano, mes, dia))
+  const agora = new Date()
+
+  const dias = Math.floor((agora - publicado) / 86400000)
+
+  if (dias < 1) return 'hoje'
+  if (dias === 1) return 'há 1 dia'
+  if (dias < 30) return `há ${dias} dias`
+
+  const meses = Math.floor(dias / 30)
+
+  if (meses === 1) return 'há 1 mês'
+  if (meses < 12) return `há ${meses} meses`
+
+  const anos = Math.floor(meses / 12)
+
+  if (anos === 1) return 'há 1 ano'
+  return `há ${anos} anos`
+}
+
+async function buscarMusica(pesquisa) {
+  const consultas = []
+
+  const original = pesquisa.trim()
+  if (original) consultas.push(original)
+
+  const simplificada = original
+    .replace(/[-_]+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (simplificada && simplificada !== original) {
+    consultas.push(simplificada)
+  }
+
+  const palavras = simplificada.split(/\s+/).filter(Boolean)
+
+  if (palavras.length > 2) {
+    for (const quantidade of [4, 3, 2]) {
+      const reduzida = palavras.slice(0, quantidade).join(' ')
+      if (reduzida && !consultas.includes(reduzida)) {
+        consultas.push(reduzida)
+      }
+    }
+  }
+
+  let melhores = []
+
+  for (const consulta of consultas) {
+    try {
+      const { stdout } = await execFileAsync(
+        'yt-dlp',
+        [
+          '--flat-playlist',
+          '--dump-single-json',
+          '--no-playlist',
+          '--no-warnings',
+          `ytsearch5:${consulta}`,
+        ],
+        {
+          maxBuffer: 10 * 1024 * 1024,
+        }
+      )
+
+      const resultado = JSON.parse(stdout)
+
+      if (Array.isArray(resultado.entries) && resultado.entries.length) {
+        melhores = resultado.entries.filter(
+          item => item?.id && item?.title
+        )
+
+        if (melhores.length) break
+      }
+    } catch (error) {
+      console.error(`ERRO NA BUSCA "${consulta}":`, error?.message || error)
+    }
+  }
+
+  if (!melhores.length) {
+    throw new Error('Música não encontrada.')
+  }
+
+  const termos = simplificada
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  const pontuar = item => {
+    const titulo = String(item.title || '').toLowerCase()
+    let pontos = 0
+
+    for (const termo of termos) {
+      if (titulo.includes(termo)) pontos += 1
+    }
+
+    if (titulo.includes(simplificada.toLowerCase())) {
+      pontos += 10
+    }
+
+    return pontos
+  }
+
+  melhores.sort((a, b) => pontuar(b) - pontuar(a))
+
+  const escolhido = melhores[0]
+
+  return {
+    ...escolhido,
+    webpage_url:
+      escolhido.webpage_url ||
+      escolhido.url ||
+      `https://www.youtube.com/watch?v=${escolhido.id}`,
+  }
+}
+
+async function baixarCapa(url, pasta) {
+  if (!url) return null
+
+  const resposta = await fetch(url)
+
+  if (!resposta.ok) {
+    throw new Error(`Não foi possível baixar a capa (${resposta.status}).`)
+  }
+
+  const buffer = Buffer.from(await resposta.arrayBuffer())
+  const arquivo = join(pasta, 'capa.jpg')
+
+  await import('node:fs/promises').then(({ writeFile }) =>
+    writeFile(arquivo, buffer)
+  )
+
+  return arquivo
+}
+
+async function baixarAudio(url, pasta) {
+  const arquivo = join(pasta, 'musica.%(ext)s')
+
+  await execFileAsync(
+    'yt-dlp',
+    [
+      '--no-playlist',
+      '--no-warnings',
+      '--no-progress',
+      '-x',
+      '--audio-format',
+      'mp3',
+      '--audio-quality',
+      '0',
+      '-o',
+      arquivo,
+      url,
+    ],
+    {
+      maxBuffer: 10 * 1024 * 1024,
+    }
+  )
+
+  return join(pasta, 'musica.mp3')
+}
+
+async function executarMusica({
+  reply,
+  args,
+  sock,
+  message,
+  somenteAudio = false,
+}) {
+  if (!args.length) {
+    return reply(
+      '❌ Digite o nome da música.\n\n' +
+      'Exemplo:\n' +
+      '!p poesia acústica 17'
+    )
+  }
+
+  const pesquisa = args.join(' ').trim()
+
+  const groupJid = message?.key?.remoteJid
+  const db = await getDatabase()
+  const personalizado = groupJid?.endsWith('@g.us')
+    ? (db.data.groups[groupJid]?.menu || {})
+    : {}
+  const botName = personalizado.botName || 'Waster Bot'
+
+  let pasta
+
+  try {
+    const info = await buscarMusica(pesquisa)
+
+    pasta = await mkdtemp(join(tmpdir(), 'waster-music-'))
+
+    const titulo = info.title || pesquisa
+    const duracao = formatarDuracao(info.duration)
+    const publicado = formatarPublicado(info.upload_date)
+
+    const texto =
+`╭━━━「 🎧 *${botName.toUpperCase()} MUSIC* 🎧 」━━━━╮
+
+- 🔍 *Pesquisa:* _${pesquisa}_
+
+- 🎵 *Título:* _${titulo}_
+
+- ⏱️ *Duração:* _${duracao}_
+
+- 📅 *Publicado:* _${publicado}_
+
+- ⬇️ *Baixando música...*
+
+╰━━━━━━━━━━━━━━━━╯`
+
+    if (!somenteAudio) {
+      let capa = null
+
+      try {
+        capa = await baixarCapa(info.thumbnail, pasta)
+      } catch (error) {
+        console.error('ERRO AO BAIXAR CAPA:', error)
+      }
+
+      if (capa) {
+        const imagem = await readFile(capa)
+
+        await sock.sendMessage(message.key.remoteJid, {
+          image: imagem,
+          caption: texto,
+        })
+      } else {
+        await reply(texto)
+      }
+    }
+
+    if (somenteAudio) {
+      await reply('🎧 Enviando sua música...')
+    }
+
+    const arquivo = await baixarAudio(info.webpage_url, pasta)
+    const audio = await readFile(arquivo)
+
+    await sock.sendMessage(message.key.remoteJid, {
+      audio,
+      mimetype: 'audio/mpeg',
+      fileName: `${titulo.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
+      ptt: false,
+    })
+  } catch (error) {
+    console.error('ERRO NO DOWNLOAD DE MÚSICA:', error)
+
+    return reply(
+      `❌ Não consegui baixar essa música.\n\n` +
+      `🔍 Pesquisa: ${pesquisa}\n` +
+      `⚠️ Motivo: ${error?.message || 'erro desconhecido'}`
+    )
+  } finally {
+    if (pasta) {
+      await rm(pasta, {
+        recursive: true,
+        force: true,
+      }).catch(() => {})
+    }
+  }
+}
+
+export const musicCommands = [
+  {
+    name: 'p',
+    aliases: ['musica', 'música'],
+    description: 'Pesquisa uma música, mostra a capa e envia o áudio.',
+    async execute(context) {
+      return executarMusica(context)
+    },
+  },
+
+  {
+    name: 'play',
+    aliases: [],
+    description: 'Baixa e envia somente o áudio.',
+    async execute(context) {
+      return executarMusica({
+        ...context,
+        somenteAudio: true,
+      })
+    },
+  },
+]

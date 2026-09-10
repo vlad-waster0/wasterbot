@@ -1,0 +1,174 @@
+import os from 'node:os'
+import { execSync } from 'node:child_process'
+import { statfs } from 'node:fs/promises'
+import { config } from '../config.js'
+
+const quizzes = [
+  ['Qual planeta é conhecido como planeta vermelho?', 'marte'],
+  ['Quantos lados tem um hexágono?', '6'],
+  ['Qual é o maior oceano do mundo?', 'pacifico'],
+]
+
+const inicioBot = Date.now()
+
+function formatarDuracao(ms) {
+  let segundos = Math.floor(ms / 1000)
+
+  const dias = Math.floor(segundos / 86400)
+  segundos %= 86400
+
+  const horas = Math.floor(segundos / 3600)
+  segundos %= 3600
+
+  const minutos = Math.floor(segundos / 60)
+  segundos %= 60
+
+  return `${String(dias).padStart(2, '0')} Dia(s) ${String(horas).padStart(2, '0')} Hora(s) ${String(minutos).padStart(2, '0')} Minuto(s) ${String(segundos).padStart(2, '0')} Segundo(s)`
+}
+
+function formatarBytes(bytes) {
+  const gb = bytes / 1024 / 1024 / 1024
+  return `${gb.toFixed(2)} GB`
+}
+
+function formatarMB(bytes) {
+  return `${(bytes / 1024 / 1024).toFixed(0)} MB`
+}
+
+function tamanhoPasta(caminho) {
+  try {
+    const resultado = execSync(`du -sk "${caminho}" 2>/dev/null | cut -f1`, {
+      encoding: 'utf8'
+    }).trim()
+
+    const kb = Number(resultado) || 0
+    return `${(kb / 1024).toFixed(2)} MB`
+  } catch {
+    return 'Indisponível'
+  }
+}
+
+function obterPlataforma() {
+  try {
+    return execSync('getprop ro.product.cpu.abi 2>/dev/null', {
+      encoding: 'utf8'
+    }).trim() || process.arch
+  } catch {
+    return process.arch
+  }
+}
+
+export const funCommands = [
+  {
+    name: 'ping',
+    description: 'Mostra informações detalhadas do bot.',
+    async execute({ reply, sender }) {
+      const dono = config.ownerNumbers.includes(sender.split('@')[0])
+
+      if (!dono) {
+        return reply('❌ Apenas o dono principal pode usar este comando.')
+      }
+
+      const inicioPing = process.hrtime.bigint()
+
+      const memoria = process.memoryUsage()
+      const memoriaTotal = os.totalmem()
+      const memoriaLivre = os.freemem()
+      const memoriaUsada = memoriaTotal - memoriaLivre
+      const percentualMemoria = ((memoriaUsada / memoriaTotal) * 100).toFixed(0)
+
+      let armazenamentoTotal = 0
+      let armazenamentoLivre = 0
+
+      try {
+        const disco = await statfs(process.cwd())
+        armazenamentoTotal = Number(disco.blocks) * Number(disco.bsize)
+        armazenamentoLivre = Number(disco.bavail) * Number(disco.bsize)
+      } catch {}
+
+      const armazenamentoUsado = armazenamentoTotal - armazenamentoLivre
+      const percentualDisco = armazenamentoTotal
+        ? ((armazenamentoUsado / armazenamentoTotal) * 100).toFixed(0)
+        : '0'
+
+      const pingMs = Number(process.hrtime.bigint() - inicioPing) / 1e6
+
+      const agora = new Date()
+      const hora = agora.toLocaleTimeString('pt-BR', {
+        hour12: false,
+        timeZone: 'America/Sao_Paulo'
+      })
+
+      const cpu = os.cpus()[0] || { model: '' }
+      const modeloCpu = cpu.model || (() => { try { return execSync('grep -m1 "Hardware\|model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2').toString().trim() || 'Desconhecido' } catch { return 'Desconhecido' } })()
+      const nucleos = (() => { try { return Number(execSync('grep -c "^processor" /proc/cpuinfo 2>/dev/null').toString().trim()) || os.cpus().length || 1 } catch { return os.cpus().length || 1 } })()
+
+      const sistema = `${os.platform()} v: ${os.release()}`
+      const uptimeSistema = formatarDuracao(os.uptime() * 1000)
+
+      const pastaAuth = tamanhoPasta('./auth_info')
+      const bancoDados = tamanhoPasta('./data')
+
+      const texto = `━━━━┉┉┉┅┅┅┅┉┉┉━━━━
+
+🕒 *Hora Atual:* ${hora}
+👤 *Usuário:* @${sender.split('@')[0]}
+📶 *Ping:* ${pingMs.toFixed(3)}ms
+⏱️ *Bot ativo a:* ${formatarDuracao(Date.now() - inicioBot)}
+
+🖥️ *Sistema Operacional:*
+📱 Plataforma: ${sistema}
+📱 Arquitetura: ${obterPlataforma()}
+⏱️ Tempo ligado: ${uptimeSistema}
+
+🧠 *Processador:*
+🔄 Modelo: ${modeloCpu}
+⚙️ ${nucleos} cores x${process.arch}
+
+💾 *Memória RAM do Sistema:*
+📈 Em uso: ${formatarBytes(memoriaUsada)} / ${formatarBytes(memoriaTotal)} (${percentualMemoria}%)
+📉 Livre: ${formatarBytes(memoriaLivre)}
+
+🤖 *Memória RAM do Bot:*
+📊 Consumo: ${formatarMB(memoria.rss)}
+💿 Heap: ${formatarMB(memoria.heapUsed)} / ${formatarMB(memoria.heapTotal)}
+
+◈• Pasta QR Code: ${pastaAuth}
+◈• Banco de Dados: ${bancoDados}
+
+🗂️ *Armazenamento:*
+💽 Total: ${formatarBytes(armazenamentoTotal)}
+📊 Usado: ${formatarBytes(armazenamentoUsado)} (${percentualDisco}%)
+📈 Livre: ${formatarBytes(armazenamentoLivre)}
+
+━━━━┉┉┉┅┅┅┅┉┉┉━━━━`
+
+      return reply(texto, { mentions: [sender] })
+    }
+  },
+
+  {
+    name: 'dado',
+    description: 'Rola um dado.',
+    async execute({ reply }) {
+      await reply(`🎲 Resultado: ${1 + Math.floor(Math.random() * 6)}`)
+    }
+  },
+
+  {
+    name: 'moeda',
+    description: 'Joga cara ou coroa.',
+    async execute({ reply }) {
+      await reply(`🪙 ${Math.random() > 0.5 ? 'Cara' : 'Coroa'}!`)
+    }
+  },
+
+  {
+    name: 'quiz',
+    description: 'Inicia uma pergunta rápida.',
+    async execute({ reply }) {
+      const [q] = quizzes[Math.floor(Math.random() * quizzes.length)]
+      await reply(`🧠 ${q}\n\nResponda no próximo chat.`)
+    }
+  },
+]

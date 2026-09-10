@@ -1,0 +1,1120 @@
+import { config } from '../config.js'
+import { getDatabase } from '../database.js'
+import { readFile } from 'node:fs/promises'
+
+const aluguelTexto = `🤖 *ALUGUE SEU BOT*
+
+💰 *PLANOS MENSAIS*
+1️⃣ *Bot de figurinhas para WhatsApp no Privado*
+💵 R$ 4,00/mês
+2️⃣ *BOT 0-50 MEMBROS*
+💵 R$ 14,00/mês
+3️⃣ *BOT 50-300 MEMBROS*
+💵 R$ 19,00/mês
+4️⃣ *BOT 300-600 MEMBROS*
+💵 R$ 24,00/mês
+5️⃣ *BOT PERSONALIZADO*
+💵 R$ 34,00/mês
+6️⃣ *BOT +600 MEMBROS*
+💵 R$ 33,00/mês
+
+🎁 *PRIMEIRA ASSINATURA*
+Você ganha *+10 dias* de uso.
+
+📲 *Para contratar:*
+https://wa.me/31996149100
+
+📞 *Contato:* 31996149100`
+
+const estilos = {
+
+  1: {
+    topo: `╭━━━━ ◦ ❖ ◦ ━━━━━╮`,
+    topo2: `╰━━━━ ◦ ❖ ◦ ━━━━━╯`,
+    linha: `━━━━━━━━━━━━━━━━━━━━`,
+    emoji: `🦇`,
+    titulo: `WASTER BOT`,
+    secao: `✦`,
+    final: `╰━━━━━━━━━━━━━━━━━━━━╯`,
+  },
+
+  2: {
+    topo: `╭─ ୨୧ ───────────────── ୨୧ ─╮`,
+    topo2: `╰─ ୨୧ ───────────────── ୨୧ ─╯`,
+    linha: `୨୧ ───────────────── ୨୧`,
+    emoji: `🦇`,
+    titulo: `𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕`,
+    secao: `୨୧`,
+    final: `╰─ ୨୧ ───────────────── ୨୧ ─╯`,
+  },
+
+  3: {
+    topo: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+    topo2: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+    linha: `✦•┈๑⋅⋯ ⋯⋅๑┈•✦`,
+    emoji: `🦇`,
+    titulo: `𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕`,
+    secao: `୭˚. ᵎᵎ`,
+    final: `✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦`,
+  },
+
+  4: {
+    topo: `╭━━━◈━━━━━━━━━━━━◈━━━╮`,
+    topo2: `╰━━━◈━━━━━━━━━━━━◈━━━╯`,
+    linha: `┣━━━━━━━━━━━━━━━━━━━━┫`,
+    emoji: `🦇`,
+    titulo: `*WASTER BOT*`,
+    secao: `┃`,
+    final: `╰━━━━━━━━━━━━━━━━━━━━╯`,
+  },
+
+  5: {
+    topo: `╭━━━━ ◦ ❖ ◦ ━━━━━╮`,
+    topo2: `╰━━━━ ◦ ❖ ◦ ━━━━━╯`,
+    linha: `🩸━━━━━━━━━━━━━━━━━━━━━━━━━━━🩸`,
+    emoji: `🦇`,
+    titulo: `Waster Bot`,
+    secao: `🩸`,
+    final: `🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸`,
+  },
+
+  6: {
+    topo: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+    topo2: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+    linha: `꧁༺━━━━━━━━━━━━༻꧂`,
+    emoji: `💜🦇`,
+    titulo: `𝑾𝑨𝑺𝑻𝑬𝑹 𝑩𝑶𝑻`,
+    secao: `༺`,
+    final: `꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂`,
+  },
+}
+
+const categorias = [
+  {
+    titulo: `🎨 𝑭𝑰𝑮𝑼𝑹𝑰𝑵𝑯𝑨𝑺`,
+    comandos: [
+      
+      '🎨 𐙚 semvisualizar',
+      '🎨 𐙚 toimg',
+      '🎨 𐙚 renomearfig Novo Nome',
+      
+      '🎨 𐙚 sgif',
+      '🎨 𐙚 s',
+    ],
+  },
+  {
+    titulo: `📥 𝑫𝑶𝑾𝑵𝑳𝑶𝑨𝑫𝑺`,
+    comandos: [
+      '📥 ⟡ instagram link',
+      '📥 ⟡ instagrammp3 link',
+      '📥 ⟡ tiktok link',
+      
+      '🎵 ⟡ p nome da música',
+      '🎵 ⟡ play nome da música',
+      '📥 ⟡ playmp4 nome do vídeo',
+      
+    ],
+  },
+  {
+    titulo: `🎮 𝑱𝑶𝑮𝑶𝑺`,
+    comandos: [
+      '🎮 ➜ caracoroa quantidade',
+      '🎲 ➜ oqueeoque',
+      '🪙 ➜ moeda',
+      '🎯 ➜ dado',
+      '🧠 ➜ quiz',
+      '📝 ➜ forca',
+      '🔮 ➜ adivinhar',
+      '🕵️ ➜ detetive',
+      '📈 ➜ maioroumenor',
+      '⚪ ➜ parouimpar',
+      '🎭 ➜ verdadeoudesafio',
+      '🌎 ➜ paises',
+      '🗺️ ➜ estados',
+      '🏛️ ➜ capitais',
+      '🏳️ ➜ bandeiras',
+      '⚽ ➜ futebol',
+      '➗ ➜ matematica',
+      '🐾 ➜ animais',
+      '🚀 ➜ espaco',
+      '🔬 ➜ ciencia',
+      '🧠 ➜ conhecimentos',
+                        '❓ ➜ charadas',
+            '📜 ➜ historia',
+            '📚 ➜ portugues',
+            '🔢 ➜ numero',
+            '✅ ➜ verdadeiro',
+      '🎰 ➜ jackpot',
+      '🏆 ➜ copadomundo',
+      '👑 ➜ quemganha',
+          ],
+  },
+  {
+    titulo: `😂 𝑩𝑹𝑰𝑵𝑪𝑨𝑫𝑬𝑰𝑹𝑨𝑺`,
+    comandos: [
+      '🤣 ✧ aura @pessoa',
+      '💀 ✧ rankgay',
+      '🐣 ✧ adotar @pessoa tipo',
+      '🌳 ✧ arvore',
+      '🤥 ✧ mentiroso @pessoa',
+      '🤥 ✧ mentirosa @pessoa',
+      '🐃 ✧ corno @pessoa',
+      '🐄 ✧ corna @pessoa',
+      '😍 ✧ lindo @pessoa',
+      '😍 ✧ linda @pessoa',
+      '😈 ✧ feio @pessoa',
+      '😈 ✧ feia @pessoa',
+      '💍 ✧ casar @pessoa',
+      '🫂 ✧ abraço @pessoa',
+      '💋 ✧ beijo @pessoa',
+      '👋 ✧ tapa @pessoa',
+      '🛏️ ✧ travesseirada @pessoa',
+      '🦶 ✧ chute @pessoa',
+      '🦷 ✧ morder @pessoa',
+      '💗 ✧ carinho @pessoa',
+      '🏳️‍🌈 ✧ gay @pessoa',
+      '👨‍🦲 ✧ calvo @pessoa',
+      '🎖️ ✧ patenteff @pessoa',
+    ],
+  },
+  {
+    titulo: `👤 𝑷𝑬𝑹𝑭𝑰𝑳`,
+    comandos: [
+      '👤 ➜ perfil',
+      '📊 ➜ checkativo',
+      '🏆 ➜ rankingatividade',
+      '💞 ➜ menurelacionamento',
+    ],
+  },
+  {
+    titulo: `💕 𝑹𝑬𝑳𝑨𝑪𝑰𝑶𝑵𝑨𝑴𝑬𝑵𝑻𝑶`,
+    comandos: [
+      '💞 ➜ namorar @pessoa',
+      '💍 ➜ casar @pessoa',
+      '💘 ➜ ship @pessoa',
+      '💋 ➜ beijar @pessoa',
+      '💔 ➜ terminar',
+      '💑 ➜ statusrelacionamento',
+      '💔 ➜ trair @pessoa',
+    ],
+  },
+  {
+    titulo: `👥 𝑮𝑹𝑼𝑷𝑶𝑺 & 𝑰𝑵𝑭𝑶𝑹𝑴𝑨𝑪̧𝑶̃𝑬𝑺`,
+    comandos: [
+      '👥 ➜ linkgrupo',
+      '👮 ➜ admins',
+      '📜 ➜ regras',
+      
+    ],
+  },
+  {
+    titulo: `🛡️ 𝑨𝑫𝑴𝑰𝑵𝑰𝑺𝑻𝑹𝑨𝑪̧𝑨̃𝑶 & 𝑺𝑬𝑮𝑼𝑹𝑨𝑵𝑪̧𝑨`,
+    comandos: [
+      '📢 ➜ mencionar',
+      '🚨 ➜ reportar',
+      '🛡️ ➜ menuadm',
+    ],
+  },
+  {
+    titulo: `💰 𝑨𝑳𝑼𝑮𝑼𝑬𝑳`,
+    comandos: [
+      '💰 ➜ alugarbot',
+    ],
+  },
+  {
+    titulo: `⚙️ 𝑶𝑼𝑻𝑹𝑶𝑺`,
+    comandos: [
+      '🏓 ➜ ping',
+      '⚙️ ➜ tagall',
+    ],
+  },
+]
+
+function centralizarTitulo(titulo, largura = 28) {
+  const texto = String(titulo || '').trim()
+  const espacos = Math.max(0, Math.floor((largura - texto.length) / 2))
+  return `${' '.repeat(espacos)}${texto}`
+}
+function normalizarLinha(personalizado, estilo) {
+  if (personalizado?.linhasMenu?.[estilo]) {
+    return personalizado.linhasMenu[estilo]
+  }
+  if (personalizado?.linhaMenu) {
+    return personalizado.linhaMenu
+  }
+  return estilos[estilo].linha
+}
+
+function montarSecao(visual, titulo, comandos, p) {
+  const linhas = comandos.map(item => {
+    const texto = String(item || '').trim()
+    const partes = texto.match(/^(\S+)\s+(?:𐙚|⟡|➜|✧)\s+(.+)$/)
+
+    if (partes) {
+      return `${partes[1]} ${p}${partes[2]}`
+    }
+
+    return `▸ ${p}${texto}`
+  }).join('\n')
+
+  return `${visual.secao} ${centralizarTitulo(titulo)}\n${linhas}`
+}
+
+
+export function aplicarFonteMenu(texto, fonte) {
+  const mapas = {
+    negrito: {
+      normal: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+      convertido: '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳'
+    },
+    italico: {
+      normal: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+      convertido: '𝘈𝘉𝘊𝘋𝘌𝘍𝘎𝘏𝘐𝘑𝘒𝘓𝘔𝘕𝘖𝘗𝘘𝘙𝘚𝘛𝘜𝘝𝘞𝘟𝘠𝘡𝘢𝘣𝘤𝘥𝘦𝘧𝘨𝘩𝘪𝘫𝘬𝘭𝘮𝘯𝘰𝘱𝘲𝘳𝘴𝘵𝘶𝘷𝘸𝘹𝘺𝘻'
+    },
+    dupla: {
+      normal: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+      convertido: '𝔸𝔹ℂ𝔻𝔼𝔽𝔾ℍ𝕀𝕁𝕂𝕃𝕄ℕ𝕆ℙℚℝ𝕊𝕋𝕌𝕍𝕎𝕏𝕐ℤ𝕒𝕓𝕔𝕕𝕖𝕗𝕘𝕙𝕚𝕛𝕜𝕝𝕞𝕟𝕠𝕡𝕢𝕣𝕤𝕥𝕦𝕧𝕨𝕩𝕪𝕫'
+    },
+    monospace: {
+      normal: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+      convertido: '𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣'
+    }
+  }
+
+  if (!fonte || fonte === 'normal' || fonte === 'itálico' || fonte === 'manuscrita' || fonte === 'medieval') {
+    return texto
+  }
+
+  const mapa = mapas[fonte]
+  if (!mapa) return texto
+
+  const tabela = new Map()
+  for (let i = 0; i < mapa.normal.length; i++) {
+    tabela.set(mapa.normal[i], mapa.convertido[i])
+  }
+
+  return [...String(texto)].map(char => tabela.get(char) || char).join('')
+}
+
+function montarMenu(estilo, personalizado, nome, hora, p) {
+  const botNome = personalizado?.botName || 'Waster Bot'
+  const site1 = personalizado?.site || 'wasterbot.site'
+  const site2 = personalizado?.site2 || 'lojawaster.shop'
+  const emoji = personalizado?.emoji || '🦇'
+
+  const agora = new Date()
+  const horaAtual = Number(
+    new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    }).format(agora)
+  )
+
+  let saudacao = 'Boa noite'
+  if (horaAtual >= 5 && horaAtual < 12) saudacao = 'Bom dia'
+  else if (horaAtual >= 12 && horaAtual < 18) saudacao = 'Boa tarde'
+
+  const C = {
+    fig: [
+      's',
+      'sgif',
+      'semvisualizar',
+      'toimg',
+      'renomearfig Novo Nome',
+    ],
+
+    down: [
+      'instagram link',
+      'instagrammp3 link',
+      'tiktok link',
+    ],
+
+    music: [
+      'p nome da música',
+      'play nome da música',
+      'playmp4 nome do vídeo',
+    ],
+
+    jogos: [
+      'oqueeoque',
+      'caracoroa quantidade',
+      'forca',
+      'moeda',
+      'dado',
+      'ppp',
+      'jogodavelha',
+      'quiz',
+      'adivinhar',
+      'detetive',
+      'maioroumenor',
+      'parouimpar',
+      'verdadeoudesafio',
+      'paises',
+      'estados',
+      'capitais',
+      'bandeiras',
+      'futebol',
+      'matematica',
+      'animais',
+      'espaco',
+      'ciencia',
+      'conhecimentos',
+      'charadas',
+      'historia',
+      'portugues',
+      'numero',
+      'verdadeiro',
+      'jackpot',
+      'copadomundo',
+      'quemganha',
+      'menugold',
+    ],
+
+    brinc: [
+      'aura @pessoa',
+      'rankgay',
+      'adotar @pessoa tipo',
+      'arvore',
+      'mentiroso @pessoa',
+      'mentirosa @pessoa',
+      'corno @pessoa',
+      'corna @pessoa',
+      'lindo @pessoa',
+      'linda @pessoa',
+      'feio @pessoa',
+      'feia @pessoa',
+      'casar @pessoa',
+      'abraco @pessoa',
+      'beijo @pessoa',
+      'chute @pessoa',
+      'tapa @pessoa',
+      'travesseirada @pessoa',
+      'calvo @pessoa',
+      'gay @pessoa',
+      'morder @pessoa',
+      'carinho @pessoa',
+    ],
+
+    perfil: [
+      'perfil',
+      'checkativo',
+      'rankingatividade',
+    ],
+
+    rel: [
+      'namorar @pessoa',
+      'casar @pessoa',
+      'ship @pessoa',
+      'beijar @pessoa',
+      'terminar',
+      'statusrelacionamento',
+      'trair @pessoa',
+    ],
+
+    grupos: [
+      'linkgrupo',
+      'admins',
+      'regras',
+    ],
+
+    admin: [
+      'menuadm',
+    ],
+
+    premium: [
+      'menupremium',
+    ],
+
+    dono: [
+      'menudono',
+    ],
+
+    outros: [
+      'ping',
+      'todos',
+    ],
+  }
+
+  const cmd = x => `${p}${x}`
+
+  const lista = (arr, marcador = '▸ ') =>
+    arr.map(x => `${marcador}${cmd(x)}`).join('\n')
+
+  const listaBox = (arr, marcador = '│  • ') =>
+    arr.map(x => `${marcador}${cmd(x)}`).join('\n')
+
+  const box2 = (titulo, arr) =>
+    `╭────── 🩸 *${titulo}* 🩸 ──────╮\n│\n${listaBox(arr)}\n│\n╰──────────────────────────────╯`
+
+  const box3 = (titulo, arr) =>
+    `╔═══════ ${titulo} ═══════╗\n║\n${arr.map((x, i) => `║  ${i === arr.length - 1 ? '└─›' : '├─›'} ${cmd(x)}`).join('\n')}\n║\n╚══════════════════════════════╝`
+
+  const sec3 = (titulo, arr) =>
+    `╭━━━━━━ ${titulo} ━━━━━━╮\n│\n${arr.map((x, i) => `│  ${i === arr.length - 1 ? '└─›' : '├─›'} ${cmd(x)}`).join('\n')}\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯`
+
+  const stage4 = (titulo, arr) =>
+    `୨୧ ── ${titulo} ── ୨୧\n\n${arr.map(x => `🎀 ┊ ${cmd(x)}`).join('\n')}`
+
+  const stage5 = (titulo, arr) =>
+    `✦•┈๑⋅⋯ ${titulo} ⋯⋅๑┈•✦\n\n${arr.map(x => `୨୧ ┊ ${cmd(x)}`).join('\n')}`
+
+  const sec6 = (titulo, arr) =>
+    `╔═══━━━─── • ───━━━═══╗\n✨ ${titulo}\n╚═══━━━─── • ───━━━═══╝\n\n${arr.map(x => `🩸 𐙚 ${cmd(x)}`).join('\n')}`
+
+  // MENU 1 — ORIGINAL
+  if (estilo === 1) {
+    return [
+      '╭━━━━ ◦ ❖ ◦ ━━━━━╮',
+      `     🦇 ${botNome} 🦇`,
+      '╰━━━━ ◦ ❖ ◦ ━━━━━╯',
+      `🌐 Site: ${site1}`,
+      `🌐 Site: ${site2}`,
+      '',
+      `- 🌙 ${saudacao} ${nome}, são ${hora}`,
+      '',
+      '🎨 *FIGURINHAS*',
+      lista(C.fig),
+      '',
+      '📥 *DOWNLOADS*',
+      lista(C.down),
+      '',
+      '🛡️ *ADMINISTRAÇÃO*',
+      `▸ ${cmd('menuadm')}`,
+      '',
+      '💎 *PREMIUM*',
+      `▸ ${cmd('menupremium')}`,
+      '',
+      '👑 *DONO*',
+      `▸ ${cmd('menudono')}`,
+      '',
+      '🎮 *JOGOS*',
+      lista(C.jogos),
+      '',
+      '😂 *BRINCADEIRAS*',
+      lista(C.brinc),
+      '',
+      '👤 *PERFIL*',
+      lista(C.perfil),
+      '',
+      '💕 *RELACIONAMENTO*',
+      lista(C.rel),
+      '',
+      '👥 *GRUPOS*',
+      lista(C.grupos),
+      '',
+      '💰 *ALUGUEL DO BOT*',
+      `▸ ${cmd('alugarbot')}`,
+      '',
+      '🎧 *MÚSICA*',
+      lista(C.music),
+      '',
+      '⚙️ *OUTROS*',
+      lista(C.outros),
+      '',
+      `> Digite ${cmd('alugarbot')} para ver os planos de aluguel.`,
+    ].join('\n')
+  }
+
+  // MENU 2 — SANGUE
+  if (estilo === 2) {
+    return [
+      '╭━━━━ ◦ ❖ ◦ ━━━━━╮',
+      `     🦇 ${botNome} 🦇`,
+      '╰━━━━ ◦ ❖ ◦ ━━━━━╯',
+      `🌐 Site: ${site1}`,
+      `🌐 Site: ${site2}`,
+      '',
+      `- 🌙 ${saudacao}, ${nome}`,
+      `- ⏰ são ${hora}`,
+      '',
+      '🩸━━━━━━━━━━━━━━━━━━━🩸',
+      '',
+      box2('*FIGURINHAS*', C.fig),
+      '',
+      box2('*DOWNLOADS*', C.down),
+      '',
+      box2('*ADMINISTRAÇÃO & SEGURANÇA*', C.admin),
+      '',
+      box2('*PREMIUM*', C.premium),
+      '',
+      box2('*DONO*', C.dono),
+      '',
+      '🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸',
+      '*PERFIL*',
+      '🩸━━━━━',
+      listaBox(C.perfil),
+      '',
+      '*RELACIONAMENTO*',
+      '🩸━━━━━',
+      listaBox(C.rel),
+      '',
+      '*JOGOS*',
+      '🩸━━━━━',
+      listaBox(C.jogos),
+      '',
+      '*BRINCADEIRAS*',
+      '🩸━━━━━',
+      listaBox(C.brinc),
+      '',
+      '*GRUPOS*',
+      '🩸━━━━━',
+      listaBox(C.grupos),
+      `│  • ${cmd('alugarbot')}`,
+      '',
+      '*MÚSICA*',
+      '🩸━━━━━',
+      listaBox(C.music),
+      '',
+      '*OUTROS*',
+      '🩸━━━━━',
+      listaBox(C.outros),
+      '',
+      `> Digite ${cmd('alugarbot')} para ver os planos de aluguel.`,
+      '🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸',
+    ].join('\n')
+  }
+
+  // MENU 3 — ◈
+  if (estilo === 3) {
+    return [
+      '╭━━━◈━━━━━━━━━━━━◈━━━╮',
+      `            🦇 *${botNome.toUpperCase()}* 🦇`,
+      '╰━━━◈━━━━━━━━━━━━◈━━━╯',
+      '',
+      `🌐 Site: ${site1}`,
+      `🌐 Site: ${site2}`,
+      '',
+      '╭─━━━━━━━ 🌙 ━━━━━━━─╮',
+      `🌙 ${saudacao} ${nome}, são ${hora}`,
+      '╰─━━━━━━━━🌙━━━━━━─╯',
+      '',
+      box3('🎨 *FIGURINHAS*', C.fig),
+      '',
+      box3('📥 *DOWNLOADS*', C.down),
+      '',
+      sec3('🛡️ *ADMINISTRAÇÃO & SEGURANÇA*', C.admin),
+      '',
+      sec3('💎 *PREMIUM*', [
+        'menupremium',
+        'alterarnome',
+        'alterarfoto',
+      ]),
+      '',
+      sec3('👑 *DONO*', C.dono),
+      '',
+      sec3('🎮 *JOGOS*', C.jogos),
+      '',
+      sec3('😂 *BRINCADEIRAS*', C.brinc),
+      '',
+      sec3('👤 *PERFIL*', C.perfil),
+      '',
+      sec3('💕 *RELACIONAMENTO*', C.rel),
+      '',
+      sec3('👥 *GRUPOS*', C.grupos),
+      `│  └─› ${cmd('alugarbot')}`,
+      '',
+      sec3('🎧 *MÚSICA*', C.music),
+      '',
+      sec3('⚙️ *OUTROS*', C.outros),
+      '',
+      '╭━━━━━━━ 🩸 ━━━━━━━╮',
+      `> Digite ${cmd('alugarbot')}`,
+      '> para ver os planos de aluguel.',
+      '╰━━━━━━━━━━━━━━━━━━╯',
+    ].join('\n')
+  }
+
+  // MENU 4 — FOFINHO / ୨୧
+  if (estilo === 4) {
+    return [
+      '✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦',
+      `   🦇 𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕 🦇`,
+      '      ✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦',
+      '',
+      `   𐙚 𝑺𝒊𝒕𝒆 ➜ ${site1}`,
+      `   𐙚 𝑺𝒊𝒕𝒆 ➜ ${site2}`,
+      '',
+      '      ⋆｡ﾟ✶°⋆｡ﾟ✶°⋆｡ﾟ',
+      '',
+      `🌙 𝑩𝒐𝒂 𝒏𝒐𝒊𝒕𝒆, ${nome} ♡`,
+      `       ${hora}`,
+      '',
+      '୨୧ ── 𝑭𝑰𝑮𝑼𝑹𝑰𝑵𝑯𝑨𝑺 ── ୨୧',
+      ...C.fig.map(x => `🎨 𐙚 ${cmd(x)}`),
+      '',
+      '୨୧ ── 𝑫𝑶𝑾𝑵𝑳𝑶𝑨𝑫𝑺 ── ୨୧',
+      ...C.down.map(x => `📥 𐙚 ${cmd(x)}`),
+      '',
+      '୨୧ ── 𝑨𝑫𝑴𝑰𝑵𝑰𝑺𝑻𝑹𝑨𝑪̧𝑨̃𝑶 ── ୨୧',
+      ...C.admin.map(x => `🛡️ 𐙚 ${cmd(x)}`),
+      '',
+      '୨୧ ── 𝑷𝑹𝑬𝑴𝑰𝑼𝑴 ── ୨୧',
+      `💎 𐙚 ${cmd('menupremium')}`,
+      '',
+      '୨୧ ── 𝑫𝑶𝑵𝑶 ── ୨୧',
+      `👑 𐙚 ${cmd('menudono')}`,
+      '',
+      stage4('𝑱𝑶𝑮𝑶𝑺', C.jogos),
+      '',
+      stage4('𝑩𝑹𝑰𝑵𝑪𝑨𝑫𝑬𝑰𝑹𝑨𝑺', C.brinc),
+      '',
+      stage4('𝑷𝑬𝑹𝑭𝑰𝑳', C.perfil),
+      '',
+      stage4('𝑹𝑬𝑳𝑨𝑪𝑰𝑶𝑵𝑨𝑴𝑬𝑵𝑻𝑶', C.rel),
+      '',
+      stage4('𝑮𝑹𝑼𝑷𝑶𝑺', C.grupos),
+      `💰 𐙚 ${cmd('alugarbot')}`,
+      '',
+      stage4('𝑴𝑼́𝑺𝑰𝑪𝑨', C.music),
+      '',
+      stage4('𝑶𝑼𝑻𝑹𝑶𝑺', C.outros),
+      '',
+      '✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦',
+      `> Digite ${cmd('alugarbot')} para ver os planos de aluguel.`,
+    ].join('\n')
+  }
+
+  // MENU 5 — FANDOM AREA
+  if (estilo === 5) {
+    return [
+      '╭─ ୨୧ ───────────────── ୨୧ ─╮',
+      '🦇 𝑾𝒂𝒔𝒕𝒆𝒓 𝑩𝒐𝒕  🦇',
+      '╰─ ୨୧ ───────────────── ୨୧ ─╯',
+      '',
+      '୭˚. ᵎᵎ  𝑭𝑨𝑵𝑫𝑶𝑴 𝑨𝑹𝑬𝑨  ୭˚. ᵎᵎ',
+      '',
+      `ᯓᡣ𐭩 𝑺𝒊𝒕𝒆: ${site1}`,
+      `ᯓᡣ𐭩 𝑺𝒊𝒕𝒆: ${site2}`,
+      '',
+      '୨୧ ──────── ✦ ──────── ୨୧',
+      '',
+      `╰┈➤ 🌙 𝑩𝒐𝒂 𝒏𝒐𝒊𝒕𝒆, ${nome}!`,
+      `╰┈➤ ⏰ 𝑺𝒂̃𝒐 ${hora}`,
+      '',
+      '✦•┈๑⋅⋯ 𝑴𝑨𝑰𝑵 𝑺𝑻𝑨𝑮𝑬 ⋯⋅๑┈•✦',
+      '',
+      '୭˚. ᵎᵎ 🎨 𝑺𝑻𝑰𝑪𝑲𝑬𝑹𝑺',
+      ...C.fig.map(x => `୨୧ ┊ ${cmd(x)}`),
+      '',
+      '୭˚. ᵎᵎ 📥 𝑫𝑶𝑾𝑵𝑳𝑶𝑨𝑫 𝑺𝑻𝑨𝑮𝑬',
+      ...C.down.map(x => `୨୧ ┊ ${cmd(x)}`),
+      '',
+      '୭˚. ᵎᵎ 🛡️ 𝑩𝑨𝑪𝑲𝑺𝑻𝑨𝑮𝑬',
+      ...C.admin.map(x => `୨୧ ┊ ${cmd(x)}`),
+      '',
+      '୭˚. ᵎᵎ 💎 𝑽𝑰𝑷 𝑨𝑹𝑬𝑨',
+      `୨୧ ┊ ${cmd('menupremium')}`,
+      '',
+      '୭˚. ᵎᵎ 👑 𝑫𝑶𝑵𝑶 𝑨𝑹𝑬𝑨',
+      `୨୧ ┊ ${cmd('menudono')}`,
+      '',
+      stage5('𝑮𝑨𝑴𝑬 𝑺𝑻𝑨𝑮𝑬', C.jogos),
+      '',
+      stage5('𝑬𝑵𝑻𝑬𝑹𝑻𝑨𝑰𝑵𝑴𝑬𝑵𝑻', C.brinc),
+      '',
+      stage5('𝑭𝑨𝑵 𝑷𝑹𝑶𝑭𝑰𝑳𝑬', C.perfil),
+      '',
+      stage5('𝑹𝑬𝑳𝑨𝑪𝑰𝑶𝑵𝑺𝑯𝑰𝑷', C.rel),
+      '',
+      stage5('𝑰𝑵𝑭𝑶 𝑪𝑬𝑵𝑻𝑬𝑹', C.grupos),
+      `୨୧ ┊ ${cmd('alugarbot')}`,
+      ...C.music.map(x => `୨୧ ┊ ${cmd(x)}`),
+      ...C.outros.map(x => `୨୧ ┊ ${cmd(x)}`),
+      '',
+      '୨୧ ──────── ✦ ──────── ୨୧',
+      '',
+      '✨ 𝑬𝑵𝑪𝑶𝑹𝑬 ✨',
+      `> Digite ${cmd('alugarbot')} para ver os planos de aluguel.`,
+    ].join('\n')
+  }
+
+  // MENU 6 — ROXO / SANGUE
+  return [
+    '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂',
+    `💜🦇🩸 𝑾𝑨𝑺𝑻𝑬𝑹 𝑩𝑶𝑻 🩸🦇💜`,
+    '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂',
+    '',
+    '╔═══━━━─── • ───━━━═══╗',
+    '✨ 𝑾𝑬𝑳𝑪𝑶𝑴𝑬 𝑻𝑶 𝑻𝑯𝑬 𝑭𝑨𝑵𝑫𝑶𝑴 💜',
+    '╚═══━━━─── • ───━━━═══╝',
+    '',
+    `🌐 Site: ${site1}`,
+    `🌐 Site: ${site2}`,
+    '',
+    `🌙 ${saudacao}, ${nome}`,
+    `⏰ São ${hora}`,
+    '',
+    sec6('🎨 𝑺𝑻𝑰𝑪𝑲𝑬𝑹𝑺', C.fig),
+    '',
+    sec6('📥 𝑫𝑶𝑾𝑵𝑳𝑶𝑨𝑫𝑺', C.down),
+    '',
+    sec6('🛡️ 𝑨𝑫𝑴𝑰𝑵𝑰𝑺𝑻𝑹𝑨𝑪̧𝑨̃𝑶 & 𝑺𝑬𝑮𝑼𝑹𝑨𝑵𝑪̧𝑨', C.admin),
+    '',
+    sec6('💎 𝑽𝑰𝑷 𝑹𝑶𝑶𝑴', C.premium),
+    '',
+    sec6('👑 𝑫𝑶𝑵𝑶', C.dono),
+    '',
+    sec6('🎮 𝑮𝑨𝑴𝑬𝑺', C.jogos),
+    '',
+    sec6('😂 𝑭𝑼𝑵 𝑻𝑰𝑴𝑬', C.brinc),
+    '',
+    sec6('👤 𝑭𝑨𝑵 𝑷𝑹𝑶𝑭𝑰𝑳𝑬', C.perfil),
+    '',
+    sec6('💞 𝑹𝑬𝑳𝑨𝑪𝑰𝑶𝑵𝑨𝑴𝑬𝑵𝑻𝑶', C.rel),
+    '',
+    sec6('📊 𝑰𝑵𝑭𝑶 𝑪𝑬𝑵𝑻𝑬𝑹', C.grupos),
+    `🩸 𐙚 ${cmd('alugarbot')}`,
+    ...C.music.map(x => `🩸 𐙚 ${cmd(x)}`),
+    ...C.outros.map(x => `🩸 𐙚 ${cmd(x)}`),
+    '',
+    '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂',
+    `> Digite ${cmd('alugarbot')} para ver os planos de aluguel.`,
+    '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂',
+  ].join('\n')
+}
+
+async function salvarEstilo(groupJid, estilo) {
+  const db = await getDatabase()
+
+  db.data.groups[groupJid] ||= {}
+  db.data.groups[groupJid].menu ||= {}
+
+  db.data.groups[groupJid].menu.estilo = estilo
+
+  await db.write()
+}
+
+export function aplicarEstiloPrivado(texto, estilo) {
+  const molduras = {
+    1: [
+      '╭━━━━ ◦ ❖ ◦ ━━━━━╮',
+      '╰━━━━ ◦ ❖ ◦ ━━━━━╯'
+    ],
+    2: [
+      '🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸',
+      '🩸━━━━━━━━━━━━━━━━━━━━━━━━🩸'
+    ],
+    3: [
+      '╭━━━◈━━━━━━━━━━━━◈━━━╮',
+      '╰━━━◈━━━━━━━━━━━━◈━━━╯'
+    ],
+    4: [
+      '✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦',
+      '✦ ˚｡⋆ ୨୧ ⋆｡˚ ✦'
+    ],
+    5: [
+      '╭─ ୨୧ ───────────────── ୨୧ ─╮',
+      '╰─ ୨୧ ───────────────── ୨୧ ─╯'
+    ],
+    6: [
+      '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂',
+      '꧁༺━━━━━━━━━━━━━━━━━━━━༻꧂'
+    ]
+  }
+
+  const [topo, final] = molduras[estilo] || molduras[1]
+  return `${topo}\n${String(texto).trim()}\n${final}`
+}
+
+export async function formatarMenuPrivado(texto, groupJid) {
+  let estilo = 1
+  let fonte = 'normal'
+
+  if (groupJid?.endsWith('@g.us')) {
+    const db = await getDatabase()
+    const personalizado = db.data.groups[groupJid]?.menu || {}
+    estilo = obterEstilo(db, groupJid)
+    fonte = personalizado.fonte || 'normal'
+  }
+
+  return aplicarFonteMenu(
+    aplicarEstiloPrivado(texto, estilo),
+    fonte
+  )
+}
+
+export function obterEstilo(db, groupJid) {
+  const valor = Number(db.data.groups[groupJid]?.menu?.estilo || 1)
+
+  if (valor < 1 || valor > 6) {
+    return 1
+  }
+
+  return valor
+}
+
+export const menuCommand = {
+  name: 'menu',
+  aliases: ['help', 'comandos'],
+
+  description: 'Exibe o menu principal.',
+
+  async execute({ reply, message, sock }) {
+    const p = config.prefix
+    const nome = message.pushName || 'usuário'
+
+    const hora = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    })
+
+    const db = await getDatabase()
+    const groupJid = message.key.remoteJid
+
+    const personalizado = groupJid?.endsWith('@g.us')
+      ? (db.data.groups[groupJid]?.menu || {})
+      : {}
+
+    const estilo = groupJid?.endsWith('@g.us')
+      ? obterEstilo(db, groupJid)
+      : 1
+
+    const menuPersonalizado = personalizado?.menusPersonalizados?.principal
+
+    const textoBase = menuPersonalizado
+      ? menuPersonalizado
+      : montarMenu(
+          estilo,
+          personalizado,
+          nome,
+          hora,
+          p
+        )
+
+    const texto = aplicarFonteMenu(
+      textoBase,
+      personalizado?.fonte || 'normal'
+    )
+
+    if (personalizado.photo) {
+      try {
+        const foto = await readFile(personalizado.photo)
+
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            image: foto,
+            caption: texto,
+          },
+          { quoted: message }
+        )
+
+        return
+      } catch (error) {
+        console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
+      }
+    }
+
+    await reply(texto)
+  },
+}
+
+function criarComandoEstilo(numero) {
+  return {
+    name: `menu${numero}`,
+
+    aliases: [],
+
+    description: `Seleciona o Menu ${numero} neste grupo.`,
+
+    async execute({ reply, message }) {
+      const groupJid = message?.key?.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      await salvarEstilo(groupJid, numero)
+
+      return reply(
+        `✅ *MENU ${numero} ATIVADO NESTE GRUPO!*\n\n` +
+        `Agora este grupo usará o estilo ${numero} sempre que alguém usar ${config.prefix}menu.`
+      )
+    },
+  }
+}
+
+export const menu1Command = criarComandoEstilo(1)
+
+export const menuoriginalCommand = {
+  name: 'menuoriginal',
+  aliases: [],
+  description: 'Volta este grupo para o Menu 1 original.',
+  async execute({ reply, message }) {
+    const groupJid = message?.key?.remoteJid
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+    await salvarEstilo(groupJid, 1)
+    return reply(
+      `✅ *MENU ORIGINAL RESTAURADO!*\n\n` +
+      `Este grupo voltou a usar o Menu 1 original.`
+    )
+  },
+}
+export const menu2Command = criarComandoEstilo(2)
+export const menu3Command = criarComandoEstilo(3)
+export const menu4Command = criarComandoEstilo(4)
+export const menu5Command = criarComandoEstilo(5)
+export const menu6Command = criarComandoEstilo(6)
+
+function criarComandoLinha(numero) {
+  return {
+    name: `mudarmenu${numero}`,
+
+    aliases: [],
+
+    description: `Altera a linha decorativa do Menu ${numero}.`,
+
+    async execute({ reply, message, args, textoCompleto }) {
+      const groupJid = message?.key?.remoteJid
+
+      if (!groupJid?.endsWith('@g.us')) {
+        return reply('❌ Este comando só pode ser usado em grupos.')
+      }
+
+      const db = await getDatabase()
+
+      db.data.groups[groupJid] ||= {}
+      db.data.groups[groupJid].menu ||= {}
+
+      const atual = obterEstilo(db, groupJid)
+
+      if (atual !== numero) {
+        return reply(
+          `❌ Este grupo está usando o *Menu ${atual}*.\n\n` +
+          `Para alterar o Menu ${numero}, primeiro use:\n` +
+          `▸ ${config.prefix}menu${numero}`
+        )
+      }
+
+      const linha = String(textoCompleto || '').trim()
+
+      if (!linha) {
+        return reply(
+          `❌ Envie a linha depois do comando.\n\n` +
+          `Exemplo:\n` +
+          `${config.prefix}mudarmenu${numero} ═══════════════`
+        )
+      }
+
+      if (linha.length > 300) {
+        return reply('❌ A linha é muito grande. Use no máximo 300 caracteres.')
+      }
+
+      db.data.groups[groupJid].menu.linhasMenu ||= {}
+      db.data.groups[groupJid].menu.linhasMenu[numero] = linha
+
+      await db.write()
+
+      return reply(
+        `✅ *LINHA DO MENU ${numero} ALTERADA!*\n\n` +
+        `${linha}\n\n` +
+        `A alteração vale somente para este grupo.`
+      )
+    },
+  }
+}
+
+export const mudarMenu1Command = criarComandoLinha(1)
+export const mudarMenu2Command = criarComandoLinha(2)
+export const mudarMenu3Command = criarComandoLinha(3)
+export const mudarMenu4Command = criarComandoLinha(4)
+export const mudarMenu5Command = criarComandoLinha(5)
+export const mudarMenu6Command = criarComandoLinha(6)
+
+export const editarEmojiCommand = {
+  name: 'editaremoji',
+  aliases: ['editarmenu', 'salvarmenu'],
+  description: 'Salva um menu personalizado respondendo à mensagem do menu.',
+  async execute({ reply, message }) {
+    const groupJid = message?.key?.remoteJid
+
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    const contexto = message?.message?.extendedTextMessage?.contextInfo
+    const citado = contexto?.quotedMessage
+
+    if (!citado) {
+      return reply(
+        `❌ Responda à mensagem do menu que você editou.\n\n` +
+        `Copie o menu, altere os emojis/símbolos e depois responda essa mensagem com:\n` +
+        `${config.prefix}editaremoji`
+      )
+    }
+
+    const texto =
+      citado?.conversation ||
+      citado?.extendedTextMessage?.text ||
+      citado?.imageMessage?.caption ||
+      citado?.videoMessage?.caption ||
+      ''
+
+    if (!String(texto).trim()) {
+      return reply('❌ Não consegui encontrar o texto do menu na mensagem respondida.')
+    }
+
+    const conteudo = String(texto).trim()
+    const maiusculo = conteudo.toUpperCase()
+
+    let tipo = 'principal'
+
+    if (
+      maiusculo.includes('DONO') ||
+      maiusculo.includes('OWNER AREA') ||
+      maiusculo.includes('OWNER')
+    ) {
+      tipo = 'dono'
+    } else if (
+      maiusculo.includes('PREMIUM') ||
+      maiusculo.includes('VIP AREA') ||
+      maiusculo.includes('VIP ROOM')
+    ) {
+      tipo = 'premium'
+    } else if (
+      maiusculo.includes('ADMINISTRAÇÃO & SEGURANÇA') ||
+      maiusculo.includes('ADMIN & SEGURANÇA') ||
+      maiusculo.includes('BACKSTAGE')
+    ) {
+      tipo = 'adm'
+    }
+
+    const db = await getDatabase()
+    db.data.groups[groupJid] ||= {}
+    db.data.groups[groupJid].menu ||= {}
+    db.data.groups[groupJid].menu.menusPersonalizados ||= {}
+
+    db.data.groups[groupJid].menu.menusPersonalizados[tipo] = conteudo
+
+    await db.write()
+
+    const nomes = {
+      principal: 'PRINCIPAL',
+      adm: 'ADM',
+      premium: 'PREMIUM',
+      dono: 'DONO',
+    }
+
+    return reply(
+      `✅ *MENU ${nomes[tipo]} SALVO!*\n\n` +
+      `A versão personalizada foi salva somente neste grupo.\n` +
+      `Os emojis, símbolos e organização da mensagem foram preservados.`
+    )
+  },
+}
+
+export const aluguelBotCommand = {
+  name: 'alugarbot',
+
+  aliases: ['aluguelbot', 'planosbot', 'planos'],
+
+  description: 'Exibe os planos de aluguel do bot.',
+
+  async execute({ reply }) {
+    return reply(aluguelTexto)
+  },
+}
