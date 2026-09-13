@@ -285,6 +285,24 @@ const sock = makeWASocket({
     await registrarAtividade(message, 'mensagem')
     const text = message.message.conversation || message.message.extendedTextMessage?.text || ''
 
+    if (jid?.endsWith('@g.us')) {
+      try {
+        const bloquearLink = await deveBloquearLink(sock, jid, sender, message, text)
+
+        if (bloquearLink) {
+          try {
+            await sock.sendMessage(jid, { delete: message.key })
+            console.log(`🔗 ANTI-LINK: mensagem removida de ${sender}`)
+          } catch (error) {
+            console.error('ERRO AO APAGAR LINK DO ANTI-LINK:', error)
+          }
+          return
+        }
+      } catch (error) {
+        console.error('ERRO NO ANTI-LINK:', error)
+      }
+    }
+
 // ANTI-FLOOD
 // 4 ou mais mensagens do mesmo usuário em menos de 10 segundos = remoção.
 if (jid?.endsWith('@g.us')) {

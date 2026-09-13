@@ -2,6 +2,8 @@ import { getDatabase } from '../database.js'
 import { config } from '../config.js'
 import { isGroupAdmin } from './admin.js'
 
+const antiLinkContagem = new Map()
+
 const LINK_REGEX = /(?:https?:\/\/|www\.|(?:chat\.whatsapp\.com|wa\.me|instagram\.com|youtube\.com|youtu\.be|tiktok\.com|facebook\.com|twitter\.com|x\.com|t\.me|bit\.ly)\/?)\S*/i
 
 export const antilinkCommands = [
@@ -72,7 +74,52 @@ export async function deveBloquearLink(sock, groupJid, sender, message, text) {
 
   try {
     const db = await getDatabase()
-    return db.data.groups[groupJid]?.antilink?.enabled === true
+    if (db.data.groups[groupJid]?.antilink?.enabled !== true) return false
+
+    const chave = `${groupJid}:${sender}`
+    const quantidade = (antiLinkContagem.get(chave) || 0) + 1
+    antiLinkContagem.set(chave, quantidade)
+
+    if (quantidade <= 3) return true
+
+    try {
+      const participante =
+        (await sock.groupMetadata(groupJid)).participants?.find((p) =>
+          [p.id, p.lid, p.phoneNumber].filter(Boolean).map(String).some(
+            (id) => id.split('@')[0].split(':')[0] === String(sender).split('@')[0].split(':')[0]
+          )
+        )
+
+      const idRemover =
+        participante?.phoneNumber ||
+        participante?.id ||
+        sender
+
+      const idMencao =
+        participante?.id ||
+        participante?.phoneNumber ||
+        sender
+
+      await sock.sendMessage(groupJid, {
+        text:
+          `🚨 *ANTI-LINK — USUÁRIO REMOVIDO!*
+
+` +
+          `👤 Usuário: @${String(sender).split('@')[0]}
+` +
+          `⚠️ Motivo: enviou *4 links* após o Anti-Link estar ativado.
+` +
+          `🔨 Ação: *USUÁRIO REMOVIDO DO GRUPO*`,
+        mentions: [idMencao],
+      })
+
+      await sock.groupParticipantsUpdate(groupJid, [idRemover], 'remove')
+      antiLinkContagem.delete(chave)
+    } catch (error) {
+      console.error('ERRO AO REMOVER POR ANTI-LINK:', error)
+    }
+
+    return true
   } catch (error) {
     console.error('ERRO AO VERIFICAR ANTI-LINK:', error)
     return false

@@ -23,8 +23,8 @@ async function ehPremiumOuDono(jid) {
 }
 
 async function darPermissaoDono({ reply, sender, message, sock, nivel }) {
-  if (!(await ehDonoPrincipal(sender))) {
-    return reply('❌ Apenas o dono principal pode conceder permissão de dono.')
+  if (!(await ehDonoBot(sender))) {
+    return reply('❌ Apenas usuários com permissão de dono podem conceder permissão de dono.')
   }
 
   const groupJid = message.key.remoteJid
@@ -452,77 +452,6 @@ ${novoPrefixo}menu`)
   },
 
   {
-    name: 'darpremium',
-    aliases: ['addpremium'],
-    description: 'Concede Premium para um usuário.',
-
-    async execute({ reply, sender, message }) {
-      if (!(await ehDonoBot(sender))) {
-        return reply('❌ Apenas o dono pode conceder Premium.')
-      }
-
-      const target =
-        message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-
-      if (!target) {
-        return reply('❌ Marque o usuário que receberá Premium.')
-      }
-
-      const db = await getDatabase()
-      const usuario = db.data.users[target] || {}
-
-      db.data.users[target] = {
-        ...usuario,
-        jid: target,
-        premium: true,
-      }
-
-      await db.write()
-
-      return reply(
-        `💎 *PREMIUM CONCEDIDO*
-
-👤 Usuário: @${target.split('@')[0]}
-💎 Status: *PREMIUM ATIVO*`
-      )
-    },
-  },
-
-  {
-    name: 'removerpremium',
-    aliases: ['delpremium'],
-    description: 'Remove Premium de um usuário.',
-
-    async execute({ reply, sender, message }) {
-      if (!(await ehDonoBot(sender))) {
-        return reply('❌ Apenas o dono pode remover Premium.')
-      }
-
-      const target =
-        message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-
-      if (!target) {
-        return reply('❌ Marque o usuário que perderá o Premium.')
-      }
-
-      const db = await getDatabase()
-
-      if (db.data.users[target]) {
-        db.data.users[target].premium = false
-      }
-
-      await db.write()
-
-      return reply(
-        `❌ *PREMIUM REMOVIDO*
-
-👤 Usuário: @${target.split('@')[0]}
-💎 Status: *PREMIUM INATIVO*`
-      )
-    },
-  },
-
-  {
     name: 'alterarfonte',
     aliases: ['fontebot', 'fontedobot'],
 
@@ -830,9 +759,6 @@ const menuDonoSalvo =
   db.data.groups[groupJid]?.menu?.menusPersonalizados?.dono
 const textoMenu = menuDonoSalvo || `
 👑 *ADMINISTRAÇÃO DO BOT*
-▸ ${p}darpremium @usuário
-▸ ${p}removerpremium @usuário
-
 👑 *PERMISSÕES DE ${nomeDonoMenu}*
 ▸ ${p}dono2 @ADM
 ▸ ${p}dono3 @ADM
