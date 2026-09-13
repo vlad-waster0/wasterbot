@@ -600,8 +600,6 @@ Pode usar o comando normalmente sem marcar o bot. ❤️`)
         ],
 
         '💎': [
-          'menupremium',
-          'premium',
           'alterarnome',
           'alterarnomebot',
           'alterarfoto',
@@ -612,8 +610,6 @@ Pode usar o comando normalmente sem marcar o bot. ❤️`)
         '👑': [
           'menudono',
           'donobot',
-          'darpremium',
-          'removerpremium',
           'dono2',
           'dono3',
           'alterarprefixo',

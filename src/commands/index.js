@@ -1,5 +1,4 @@
-import { premiumMenuCommand } from './premium.js'
-import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarEmojiCommand, editarMenuAdmCommand, editarMenuPremiumCommand, editarMenuDonoCommand } from './menu.js'
+import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarEmojiCommand, editarMenuAdmCommand, editarMenuDonoCommand } from './menu.js'
 import { funCommands } from './fun.js'
 import { mediaCommands } from './media.js'
 import { musicCommands } from './music.js'
@@ -39,7 +38,6 @@ import { rankingCommand } from './ranking.js'
 import { levelCommand } from './level.js'
 
 export const commands = [
-  premiumMenuCommand,
   menuCommand,
   aluguelBotCommand,
   ...funCommands,
@@ -94,7 +92,6 @@ export const commands = [
   mudarMenu6Command,
   editarEmojiCommand,
   editarMenuAdmCommand,
-  editarMenuPremiumCommand,
   editarMenuDonoCommand
 
 ]

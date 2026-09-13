@@ -148,16 +148,20 @@ async function descobrirNumero(sock, message, jid) {
 async function nomeDoAlvo(sock, message, jid) {
   try {
     const grupo = message?.key?.remoteJid
-
     if (grupo?.endsWith('@g.us')) {
       const metadata = await sock.groupMetadata(grupo)
+      const alvo = normalizarIdRelacionamento(jid)
 
-      const participante = (metadata.participants || []).find((p) =>
-        p.id === jid ||
-        p.lid === jid ||
-        p.phoneNumber === jid ||
-        p.jid === jid
-      )
+      const participante = (metadata.participants || []).find((p) => {
+        const ids = [
+          p.id,
+          p.lid,
+          p.phoneNumber,
+          p.jid,
+        ].filter(Boolean)
+
+        return ids.some((id) => normalizarIdRelacionamento(id) === alvo)
+      })
 
       if (participante) {
         const nome =
@@ -176,8 +180,10 @@ async function nomeDoAlvo(sock, message, jid) {
     console.error('ERRO AO BUSCAR NOME DO PERFIL:', error)
   }
 
-  return '~'
+  const numeroAlvo = numeroSeguroRelacionamento(jid)
+  return numeroAlvo || '~'
 }
+
 async function enviarMidia({
   sock,
   message,
@@ -188,6 +194,7 @@ async function enviarMidia({
   const db = await getDatabase()
 
   const gifs = db.data.settings?.gifs || {}
+  const relacionamento = db.data.relacionamento || db.data.settings?.relacionamento || {}
 
   const chave = String(nomeGif || '')
     .toLowerCase()
@@ -196,7 +203,9 @@ async function enviarMidia({
 
   const item =
     gifs[nomeGif] ||
-    gifs[chave]
+    gifs[chave] ||
+    relacionamento[nomeGif] ||
+    relacionamento[chave]
 
   if (!item) {
     console.log('⚠️ MÍDIA NÃO CONFIGURADA:', nomeGif)
@@ -272,13 +281,6 @@ function encontrarPedidoPara(db, ids) {
     ? ids.filter(Boolean)
     : [ids].filter(Boolean)
 
-  const normalizar = (id) => {
-    if (!id) return ''
-    return String(id).split('@')[0]
-  }
-
-  const numeros = new Set(listaIds.map(normalizar).filter(Boolean))
-
   for (const [key, pedido] of Object.entries(pendentes)) {
     const candidatos = [
       pedido.to,
@@ -287,21 +289,17 @@ function encontrarPedidoPara(db, ids) {
       pedido.destinatario,
       pedido.destinatarioAlt,
       pedido.destinatarioLid,
-    ]
+    ].filter(Boolean)
 
-    if (
-      candidatos.some(id => id && (
-        listaIds.includes(id) ||
-        numeros.has(normalizar(id))
-      ))
-    ) {
+    if (candidatos.some(alvo =>
+      listaIds.some(id => mesmosUsuarios(id, alvo))
+    )) {
       return { key, pedido }
     }
   }
 
   return null
 }
-
 
 function jidCanonico(jid) {
   if (!jid) return jid
@@ -317,137 +315,55 @@ async function resolverUsuario(sock, message, jid) {
   return jidCanonico(resolvido)
 }
 
-function normalizarId(id) {
+function numeroSeguroRelacionamento(jid) {
+  return String(jid || '').split('@')[0].split(':')[0]
+}
+
+function jidRealRelacionamento(id) {
+  if (!id) return null
+  const texto = String(id)
+  if (texto.endsWith('@s.whatsapp.net')) return texto
+  if (texto.endsWith('@lid')) return texto
+  const numero = numeroSeguroRelacionamento(texto)
+  if (/^\d{5,20}$/.test(numero)) return `${numero}@s.whatsapp.net`
+  return texto
+}
+
+function normalizarIdRelacionamento(id) {
   if (!id) return ''
-  return String(id).split('@')[0]
+  return String(id).split('@')[0].split(':')[0]
 }
 
 function mesmosUsuarios(a, b) {
-  if (!a || !b) return false
-  return a === b || normalizarId(a) === normalizarId(b)
+  return normalizarIdRelacionamento(a) === normalizarIdRelacionamento(b)
 }
 
-function encontrarRelacaoUsuario(db, jid) {
-  if (!jid) return null
+function encontrarRelacionamento(db, jid) {
+  const alvo = normalizarIdRelacionamento(jid)
+  if (!alvo) return null
 
   const relacionamentos = db.data.relationships || {}
 
-  if (relacionamentos[jid]) {
-    return {
-      key: jid,
-      rel: relacionamentos[jid],
-    }
-  }
+  for (const [id, rel] of Object.entries(relacionamentos)) {
+    if (id === 'pending' || !rel || typeof rel !== 'object') continue
 
-  const normalizar = (id) =>
-    String(id || '')
-      .split('@')[0]
-      .split(':')[0]
+    const idNormalizado = normalizarIdRelacionamento(id)
 
-  const numeroJid = normalizar(jid)
-
-  for (const [key, rel] of Object.entries(relacionamentos)) {
-    if (key === 'pending') continue
-
-    const candidatos = [
-      key,
-      rel?.from,
-      rel?.to,
-    ].filter(Boolean)
-
-    for (const id of candidatos) {
-      if (
-        String(id) === String(jid) ||
-        mesmosUsuarios(id, jid) ||
-        normalizar(id) === numeroJid
-      ) {
-        return {
-          key,
-          rel,
-        }
-      }
+    if (idNormalizado === alvo) {
+      return rel
     }
   }
 
   return null
 }
 
+function encontrarRelacaoUsuario(db, jid) {
+  return encontrarRelacionamento(db, jid)
+}
+
 function parceiro(db, jid) {
-  return db.data.relationships?.[jid]?.parceiro || null
-}
-
-
-function numeroSeguroRelacionamento(jid) {
-  return String(jid || '')
-    .split('@')[0]
-    .split(':')[0]
-}
-
-function jidRealRelacionamento(id) {
-  if (!id) return null
-
-  const texto = String(id)
-
-  if (texto.endsWith('@s.whatsapp.net')) {
-    return texto
-  }
-
-  if (texto.endsWith('@lid')) {
-    return texto
-  }
-
-  const numero = numeroSeguroRelacionamento(texto)
-
-  if (/^\d{5,20}$/.test(numero)) {
-    return `${numero}@s.whatsapp.net`
-  }
-
-  return texto
-}
-
-async function resolverAlvoRelacionamento(sock, message, alvo) {
-  if (!alvo) return null
-
-  const alvoTexto = String(alvo)
-
-  if (alvoTexto.endsWith('@s.whatsapp.net')) {
-    return alvoTexto
-  }
-
-  if (!alvoTexto.endsWith('@lid')) {
-    return jidRealRelacionamento(alvoTexto)
-  }
-
-  const grupo = message?.key?.remoteJid
-
-  if (!grupo?.endsWith('@g.us')) {
-    return alvoTexto
-  }
-
-  try {
-    const metadata = await sock.groupMetadata(grupo)
-
-    const participante = (metadata.participants || []).find((p) =>
-      [p.id, p.lid, p.phoneNumber]
-        .filter(Boolean)
-        .map(String)
-        .includes(alvoTexto)
-    )
-
-    return (
-      participante?.phoneNumber ||
-      (participante?.id?.endsWith('@s.whatsapp.net')
-        ? participante.id
-        : alvoTexto)
-    )
-  } catch {
-    return alvoTexto
-  }
-}
-
-function montarMencaoRelacionamento(jid) {
-  const numero = numeroSeguroRelacionamento(jid)
-  return `@${numero}`
+  const rel = encontrarRelacionamento(db, jid)
+  return rel?.parceiro || null
 }
 
 export const relacionamentoCommands = [
@@ -494,95 +410,57 @@ export const relacionamentoCommands = [
     aliases: ['meuperfil'],
 
     async execute({ sock, message, reply }) {
-      const contexto =
-        message?.message?.extendedTextMessage?.contextInfo || {}
-
+      const contexto = message?.message?.extendedTextMessage?.contextInfo || {}
       const mencoes = contexto.mentionedJid || []
+      const alvo = mencoes[0] || obterMencao(message) || obterRemetente(message)
 
-      const alvo =
-        mencoes[0] ||
-        obterMencao(message) ||
-        obterRemetente(message)
-
+      console.log('=== PERFIL ===')
+      console.log('TEXTO:', textoMensagem(message))
+      console.log('MENCÕES:', JSON.stringify(mencoes))
+      console.log('ALVO:', alvo)
+      console.log('REMETENTE:', obterRemetente(message))
+      console.log('============')
       const db = await getDatabase()
       inicializarRelacionamentos(db)
 
-      const numeroReal =
-        await descobrirNumero(sock, message, alvo)
-
+      const numeroReal = await descobrirNumero(sock, message, alvo)
       const nome =
         obterMencao(message)
           ? await nomeDoAlvo(sock, message, alvo)
           : nomeUsuario(message)
 
-      const alvoBanco =
-        numeroReal
-          ? `${numeroReal}@s.whatsapp.net`
-          : alvo
-
-      const usuario =
-        db.data.users[alvoBanco] ||
-        db.data.users[alvo] ||
-        {}
-
-      const relEncontradaPerfil =
-        encontrarRelacaoUsuario(db, alvoBanco)
-
-      const rel = relEncontradaPerfil?.rel
+      const alvoBanco = jidRealRelacionamento(alvo)
+      const usuario = db.data.users[alvoBanco] || db.data.users[alvo] || {}
+      const rel = encontrarRelacionamento(db, alvoBanco)
 
       let foto = null
 
       try {
-        foto = await sock.profilePictureUrl(
-          alvo,
-          'image'
-        )
+        foto = await sock.profilePictureUrl(alvo, 'image')
       } catch {}
 
       const gold = Number(usuario.gold || 0)
 
       let status = 'Solteiro(a)'
 
-      if (
-        rel?.parceiro &&
-        rel.status === 'namorando'
-      ) {
+      if ((rel?.status === 'namorando' || rel?.status === 'casado') && rel.parceiro) {
         const nomeParceiro =
-          await nomeDoAlvo(
-            sock,
-            message,
-            rel.parceiro
-          )
+          await nomeDoAlvo(sock, message, rel.parceiro)
 
-        status =
-          `💑 Namorando com @${numero(rel.parceiro)}`
+        status = rel.status === 'casado' ? `Casado(a) com ${nomeParceiro}` : `Namorando com ${nomeParceiro}`
       }
 
-      if (
-        rel?.parceiro &&
-        rel.status === 'casado'
-      ) {
-        const nomeParceiro =
-          await nomeDoAlvo(
-            sock,
-            message,
-            rel.parceiro
-          )
+      const texto = `👤 *PERFIL*
 
-        status =
-          `💍 Casado(a) com @${numero(rel.parceiro)}`
-      }
+╭━━━〔 🪪 INFORMAÇÕES 〕━━━╮
+┃ 👤 Nome: ${nome}
+┃ 📱 Número: ${numeroReal}
+┃ 🪙 Gold: ${gold}
+┃ 💎 Premium: ${usuario.premium ? 'Sim' : 'Não'}
+╰━━━━━━━━━━━━━━━━━━━━╯
 
-      const texto =
-        `👤 *PERFIL*\n` +
-        `╭━━━〔 📋 INFORMAÇÕES 〕━━━╮\n` +
-        `┃ 👤 Nome: ${nome}\n` +
-        `┃ 📱 Número: ${numeroReal}\n` +
-        `┃ 🪙 Gold: ${gold}\n` +
-        `┃ 💎 Premium: ${usuario.premium ? 'Sim' : 'Não'}\n` +
-        `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `❤️ *RELACIONAMENTO*\n` +
-        `┃ Status: ${status}`
+❤️ *RELACIONAMENTO*
+┃ Status: ${status}`
 
       if (foto) {
         try {
@@ -591,16 +469,13 @@ export const relacionamentoCommands = [
             {
               image: { url: foto },
               caption: texto,
+              mentions: [alvoBanco],
             },
             { quoted: message }
           )
-
           return
         } catch (error) {
-          console.error(
-            'ERRO AO ENVIAR FOTO DO PERFIL:',
-            error
-          )
+          console.error('ERRO AO ENVIAR FOTO DO PERFIL:', error)
         }
       }
 
@@ -608,14 +483,136 @@ export const relacionamentoCommands = [
         message.key.remoteJid,
         {
           text: texto,
-          mentions: [alvoReal].filter(Boolean),
+          mentions: [alvoBanco],
         },
         { quoted: message }
       )
     },
   },
 
-    { name: 'sim',
+  {
+    name: 'namorar',
+    aliases: ['namoro', 'pedirnamoro'],
+
+    async execute({ sock, message, reply }) {
+      const alvoOriginal = obterMencao(message)
+      const alvo = await resolverMencao(sock, message, alvoOriginal)
+      const remetente = obterRemetente(message)
+
+      if (!alvo) {
+        return reply(
+          '❌ Marque a pessoa que você quer convidar para namorar.\n\n' +
+          'Exemplo: !namorar @pessoa'
+        )
+      }
+
+      if (alvo === remetente) {
+        return reply('😂 Você não pode pedir você mesmo em namoro!')
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      if (db.data.relationships[remetente]?.status === 'namorando') {
+        return reply('❤️ Você já está em um relacionamento!')
+      }
+
+      if (db.data.relationships[alvo]?.status === 'namorando') {
+        return reply('💔 Essa pessoa já está em um relacionamento!')
+      }
+
+      if (encontrarPedido(db, remetente, alvo)) {
+        return reply('💌 Você já enviou um pedido para essa pessoa!')
+      }
+
+      const nome = nomeUsuario(message)
+
+      db.data.relationships.pending[chave(remetente, alvo)] = {
+        from: remetente,
+        to: alvo,
+        fromName: nome,
+        createdAt: Date.now(),
+      }
+
+      await db.write()
+
+      const marcado = `@${numero(alvo)}`
+
+      const caption = `💘 *PEDIDO DE NAMORO!*
+
+💌 ${nome} está convidando ${marcado} para namorar!
+
+❤️ Você aceita namorar com ${nome}?
+
+👉 Responda esta mensagem com:
+✅ *!sim* para aceitar
+❌ *!não* para recusar
+
+💖 Boa sorte aos dois!`
+
+      const enviou = await enviarMidia({
+        sock,
+        message,
+        caption,
+        mentions: [alvo, remetente],
+        nomeGif: 'namorar',
+      })
+
+      if (!enviou) {
+        await sock.sendMessage(
+          message.key.remoteJid,
+          { text: caption, mentions: [alvo, remetente] },
+          { quoted: message }
+        )
+      }
+    },
+  },
+
+  {
+    name: 'cancelarpedido',
+    aliases: ['cancelarnamoro', 'cancelarpedido namoro'],
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const alvo = obterMencao(message)
+
+      if (!alvo) {
+        return reply(
+          '❌ Marque a pessoa do pedido que você deseja cancelar.\\n\\nExemplo: !cancelarpedido @pessoa'
+        )
+      }
+
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const remetenteReal = jidRealRelacionamento(await resolverUsuario(sock, message, remetente))
+      const alvoReal = await resolverUsuario(sock, message, alvo)
+
+      const encontrado = encontrarPedido(db, remetenteReal, alvoReal)
+
+      if (!encontrado) {
+        return reply(
+          '❌ Não encontrei um pedido de namoro pendente enviado por você para essa pessoa.'
+        )
+      }
+
+      delete db.data.relationships.pending[encontrado.key]
+      await db.write()
+
+      const marcado = `@${numero(alvoReal)}`
+
+      return sock.sendMessage(
+        message.key.remoteJid,
+        {
+          text:
+            `❌ *PEDIDO DE NAMORO CANCELADO!*\\n\\n` +
+            `Você cancelou o pedido de namoro enviado para ${marcado}. ❤️`,
+          mentions: [alvoBanco],
+        },
+        { quoted: message }
+      )
+    },
+  },
+  { name: 'sim',
     aliases: ['aceitar', 'aceito'],
 
     async execute({ sock, message, reply }) {
@@ -631,53 +628,145 @@ export const relacionamentoCommands = [
       const db = await getDatabase()
       inicializarRelacionamentos(db)
 
-      const encontrado = encontrarPedidoPara(db, remetente)
+      const encontrado = encontrarPedidoPara(db, obterIds(message))
 
       if (!encontrado) {
-        return reply('❌ Não encontrei um pedido de namoro para você.')
+        return reply('❌ Não encontrei um pedido de relacionamento para você.')
       }
 
       const { key, pedido } = encontrado
 
       if (
         !citado.includes('PEDIDO DE NAMORO') &&
-        !citado.includes('!sim')
+        !citado.includes('PEDIDO DE CASAMENTO')
       ) {
         return reply(
-          '❌ Essa não parece ser a mensagem do pedido de namoro.'
+          '❌ Essa não parece ser uma mensagem válida de pedido.'
         )
       }
 
-      db.data.relationships[pedido.from] = {
-        status: 'namorando',
-        parceiro: pedido.to,
-        desde: Date.now(),
+      const fromReal = await resolverUsuario(sock, message, pedido.from)
+      const toReal = await resolverUsuario(sock, message, pedido.to)
+
+      if (!fromReal || !toReal) {
+        return reply('❌ Não consegui identificar corretamente as duas pessoas.')
       }
 
-      db.data.relationships[pedido.to] = {
+      if (pedido.tipo === 'casamento') {
+        const relFromEncontrada = encontrarRelacaoUsuario(db, fromReal)
+        const relToEncontrada = encontrarRelacaoUsuario(db, toReal)
+
+        const relFrom = relFromEncontrada
+        const relTo = relToEncontrada
+
+        if (
+          relTo?.status === 'casado' &&
+          !mesmosUsuarios(relTo.parceiro, fromReal)
+        ) {
+          return reply('💍 Você já está casado(a) com outra pessoa! 😂❤️')
+        }
+
+        if (
+          relFrom?.status === 'casado' &&
+          !mesmosUsuarios(relFrom.parceiro, toReal)
+        ) {
+          return reply('💍 Essa pessoa já está casada com outra pessoa! 😂❤️')
+        }
+
+        const agora = Date.now()
+
+        db.data.relationships[fromReal] = {
+          ...(relFrom || {}),
+          status: 'casado',
+          parceiro: toReal,
+          desde: agora,
+        }
+
+        db.data.relationships[toReal] = {
+          ...(relTo || {}),
+          status: 'casado',
+          parceiro: fromReal,
+          desde: agora,
+        }
+
+        if (relFromEncontrada && fromReal) {
+          delete db.data.relationships[normalizarIdRelacionamento(fromReal) + '@s.whatsapp.net']
+        }
+
+        if (relToEncontrada && toReal) {
+          delete db.data.relationships[normalizarIdRelacionamento(toReal) + '@s.whatsapp.net']
+        }
+
+        delete db.data.relationships.pending[key]
+        await db.write()
+
+        const from = `@${numero(fromReal)}`
+        const to = `@${numero(toReal)}`
+
+        return await enviarMidia({
+          sock,
+          message,
+          caption:
+            `💒 *CASAMENTO ACEITO!* 💍\n\n` +
+            `🥰 ${to} aceitou o pedido de casamento de ${from}!\n\n` +
+            `💖 Agora vocês estão oficialmente casados!\n\n` +
+            `🎉 Que venha muito amor, carinho e felicidade para o casal! ❤️`,
+          mentions: [fromReal, toReal],
+          nomeGif: 'pedido_casamento',
+        })
+      }
+
+      const relFromEncontrada = encontrarRelacaoUsuario(db, fromReal)
+      const relToEncontrada = encontrarRelacaoUsuario(db, toReal)
+
+      const relFrom = relFromEncontrada
+      const relTo = relToEncontrada
+
+      if (relFrom?.status === 'namorando') {
+        return reply('❤️ Essa pessoa já está namorando!')
+      }
+
+      if (relTo?.status === 'namorando') {
+        return reply('❤️ Você já está namorando com outra pessoa!')
+      }
+
+      const agora = Date.now()
+
+      db.data.relationships[fromReal] = {
         status: 'namorando',
-        parceiro: pedido.from,
-        desde: Date.now(),
+        parceiro: toReal,
+        desde: agora,
+      }
+
+      db.data.relationships[toReal] = {
+        status: 'namorando',
+        parceiro: fromReal,
+        desde: agora,
+      }
+
+      if (relFromEncontrada && fromReal) {
+        delete db.data.relationships[normalizarIdRelacionamento(fromReal) + '@s.whatsapp.net']
+      }
+
+      if (relToEncontrada && toReal) {
+        delete db.data.relationships[normalizarIdRelacionamento(toReal) + '@s.whatsapp.net']
       }
 
       delete db.data.relationships.pending[key]
       await db.write()
 
-      const from = `@${numero(pedido.from)}`
-      const to = `@${numero(pedido.to)}`
+      const from = `@${numero(fromReal)}`
+      const to = `@${numero(toReal)}`
 
-      await enviarMidia({
+      return await enviarMidia({
         sock,
         message,
-        caption: `💖 *NAMORO ACEITO!*
-
-🥰 ${to} aceitou o pedido de ${from}!
-
-❤️ Agora vocês estão oficialmente namorando!
-
-💑 Que esse relacionamento seja cheio de amor, carinho e felicidade! 💕`,
-        mentions: [pedido.from, pedido.to],
-        nomeGif: 'namoroaceito',
+        caption:
+          `❤️ *NAMORO ACEITO!*\n\n` +
+          `🥰 ${to} aceitou o pedido de namoro de ${from}!\n\n` +
+          `💑 Agora vocês estão oficialmente namorando! ❤️`,
+        mentions: [fromReal, toReal],
+        nomeGif: 'namorar',
       })
     },
   },
@@ -687,101 +776,291 @@ export const relacionamentoCommands = [
     aliases: ['nao', 'recusar', 'recusei'],
 
     async execute({ sock, message, reply }) {
-      const remetente = obterRemetente(message)
       const citado = textoCitado(message)
 
       if (!citado) {
         return reply(
-          '💌 Responda diretamente ao pedido de namoro com *!não*.'
+          '💌 Responda diretamente ao pedido de relacionamento com *!não*.'
         )
       }
 
       const db = await getDatabase()
       inicializarRelacionamentos(db)
 
-      const encontrado = encontrarPedidoPara(db, remetente)
+      const encontrado = encontrarPedidoPara(db, obterIds(message))
 
       if (!encontrado) {
-        return reply('❌ Não encontrei um pedido de namoro para você.')
+        return reply('❌ Não encontrei um pedido de relacionamento para você.')
       }
 
       const { key, pedido } = encontrado
 
       if (
         !citado.includes('PEDIDO DE NAMORO') &&
-        !citado.includes('!sim')
+        !citado.includes('PEDIDO DE CASAMENTO')
       ) {
         return reply(
-          '❌ Essa não parece ser a mensagem do pedido de namoro.'
+          '❌ Essa não parece ser uma mensagem válida de pedido.'
         )
       }
+
+      const fromReal = await resolverUsuario(sock, message, pedido.from)
+      const toReal = await resolverUsuario(sock, message, pedido.to)
 
       delete db.data.relationships.pending[key]
       await db.write()
 
+      const casamento = pedido.tipo === 'casamento'
+
+      const remetente = `@${numero(fromReal)}`
+      const destinatario = `@${numero(toReal)}`
+
       await enviarMidia({
         sock,
         message,
-        caption: `💔 *PEDIDO RECUSADO!*
-
-😢 @${numero(pedido.to)} não aceitou o pedido de @${numero(pedido.from)}.
-
-😂 Quem sabe na próxima! ❤️`,
-        mentions: [pedido.from, pedido.to],
+        caption: casamento
+          ? `💔 *PEDIDO DE CASAMENTO RECUSADO!*\n\n` +
+            `😢 ${destinatario} não aceitou o pedido de casamento de ${remetente}.\n\n` +
+            `😂 Quem sabe na próxima! 💍❤️`
+          : `💔 *PEDIDO DE NAMORO RECUSADO!*\n\n` +
+            `😢 ${destinatario} não aceitou o pedido de ${remetente}.\n\n` +
+            `😂 Quem sabe na próxima! ❤️`,
+        mentions: [fromReal, toReal],
         nomeGif: 'namoronao',
       })
     },
   },
 
-{
-    name: 'namorar',
-    aliases: ['namoro'],
-    description: 'Faz um pedido de namoro.',
-    async execute({ sock, message, reply, sender }) {
-      const alvoOriginal =
-        message?.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] ||
-        message?.message?.extendedTextMessage?.contextInfo?.participant
+  {
+    name: 'trair',
+    aliases: ['traicao', 'traição'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const alvoOriginal = obterMencao(message)
 
       if (!alvoOriginal) {
-        return reply('💕 Marque a pessoa que você quer pedir em namoro.')
+        return reply(
+          '😈 Marque a pessoa com quem você quer trair!\n\n' +
+          'Exemplo: !trair @pessoa'
+        )
       }
 
-      let alvo = alvoOriginal
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
 
-      try {
-        if (typeof resolverMencao === 'function') {
-          alvo = await resolverMencao(sock, message, alvoOriginal) || alvoOriginal
-        }
-      } catch {}
+      const relEncontrada = encontrarRelacaoUsuario(db, remetente)
+      const rel = relEncontrada
 
-      const numero = (jid) =>
-        String(jid || '')
-          .split('@')[0]
-          .split(':')[0]
-          .replace(/\D/g, '')
+      if (!rel?.status || rel.status !== 'namorando' || !rel.parceiro) {
+        return reply(
+          '💔 Você precisa estar namorando oficialmente para poder trair alguém! 😂'
+        )
+      }
 
-      const texto =
-        `💕 *PEDIDO DE NAMORO!*\n\n` +
-        `💘 @${numero(sender)} está pedindo @${numero(alvo)} em namoro!\n\n` +
-        `💌 Responda esta mensagem com *!sim* para aceitar\n` +
-        `❌ Responda com *!não* para recusar\n\n` +
-        `❤️ Será que vem namoro por aí? 👀`
+      const parceiroReal = await resolverUsuario(
+        sock,
+        message,
+        rel.parceiro
+      )
 
-      await sock.sendMessage(message.key.remoteJid, {
-        text: texto,
-        mentions: [sender, alvo].filter(Boolean),
-      })
+      const alvoReal = await resolverUsuario(
+        sock,
+        message,
+        alvoOriginal
+      )
+
+      if (!alvoReal) {
+        return reply('❌ Não consegui identificar a pessoa marcada.')
+      }
+
+      if (mesmosUsuarios(alvoReal, remetente)) {
+        return reply('😂 Você não pode trair alguém consigo mesmo!')
+      }
+
+      if (mesmosUsuarios(alvoReal, parceiroReal)) {
+        return reply(
+          '😂 Isso não é traição, essa pessoa já é seu parceiro(a)! ❤️'
+        )
+      }
+
+      const voce = `@${numero(remetente)}`
+      const parceiro = `@${numero(parceiroReal)}`
+      const alvo = `@${numero(alvoReal)}`
+
+      return await sock.sendMessage(
+        message.key.remoteJid,
+        {
+          text:
+            `😈 *TRAIÇÃO!*\n\n` +
+            `💔 ${voce} traiu ${parceiro} com ${alvo}! 🫣`,
+          mentions: [remetente, parceiroReal, alvoReal],
+        },
+        { quoted: message }
+      )
     },
   },
 
+  {
+    name: 'terminar',
+    aliases: ['terminarrelacionamento', 'terminonamoro'],
 
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const encontrado = encontrarRelacaoUsuario(db, remetente)
+
+      if (
+        !encontrado?.status ||
+        encontrado.status !== 'namorando' ||
+        !encontrado.parceiro
+      ) {
+        return reply('💔 Você não está namorando no momento.')
+      }
+
+      const remetenteReal = jidRealRelacionamento(await resolverUsuario(sock, message, remetente))
+      const alvo = jidRealRelacionamento(await resolverUsuario(
+        sock,
+        message,
+        encontrado.parceiro
+      ))
+
+      delete db.data.relationships[remetenteReal]
+      delete db.data.relationships[alvo]
+
+      await db.write()
+
+      const textoTermino = `💔 *RELACIONAMENTO ENCERRADO!*
+
+😢 @${numero(remetenteReal)} e @${numero(alvo)} não estão mais namorando.
+
+💔 Agora cada um segue seu caminho...
+
+🌹 Desejamos o melhor para os dois!`
+
+      const enviou = await enviarMidia({
+        sock,
+        message,
+        caption: textoTermino,
+        mentions: [remetenteReal, alvo],
+        nomeGif: 'terminar',
+      })
+
+      if (!enviou) {
+        await sock.sendMessage(
+          message.key.remoteJid,
+          { text: textoTermino, mentions: [remetenteReal, alvo] },
+          { quoted: message }
+        )
+      }
+    },
+  },
+
+  {
+    name: 'relacionamento',
+    aliases: ['relacao', 'namoroatual', 'statusrelacionamento'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (!rel?.parceiro) {
+        return reply('💔 Você está solteiro(a)!')
+      }
+
+      const nome = await nomeDoAlvo(
+        sock,
+        message,
+        rel.parceiro
+      )
+
+      return reply(
+        `❤️ *SEU RELACIONAMENTO*\n\n` +
+        `💑 Você está namorando com ${nome}!\n` +
+        `💕 Juntos desde: ${new Date(rel.desde).toLocaleDateString('pt-BR')}`
+      )
+    },
+  },
+
+  {
+    name: 'casal',
+
+    async execute({ sock, message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (!rel?.parceiro) {
+        return reply('💔 Você não está em um relacionamento.')
+      }
+
+      const nome = await nomeDoAlvo(
+        sock,
+        message,
+        rel.parceiro
+      )
+
+      return reply(
+        `💑 *CASAL*\n\n` +
+        `❤️ ${nome} + Você\n\n` +
+        `💕 Um casal lindo!`
+      )
+    },
+  },
+
+  {
+    name: 'ex',
+    aliases: ['meuex'],
+
+    async execute({ sock, message, reply }) {
+      const remetente = jidRealRelacionamento(obterRemetente(message))
+      const db = await getDatabase()
+      const ex = db.data.users[remetente]?.ex
+
+      if (!ex) {
+        return reply('💔 Você ainda não possui um ex registrado.')
+      }
+
+      const nome = await nomeDoAlvo(sock, message, ex)
+
+      return reply(`💔 Seu ex registrado é ${nome}.`)
+    },
+  },
+
+  {
+    name: 'solteiro',
+    aliases: ['solteira'],
+
+    async execute({ message, reply }) {
+      const remetente = obterRemetente(message)
+      const db = await getDatabase()
+      inicializarRelacionamentos(db)
+
+      const rel = db.data.relationships[remetente]
+
+      if (rel?.status === 'namorando') {
+        return reply(
+          '❤️ Você está namorando! Use *!terminar* se realmente quiser terminar.'
+        )
+      }
+
+      return reply('💘 Você está solteiro(a) e disponível!')
+    },
+  },
 
   {
   name: 'casar',
   aliases: ['casamento'],
   async execute({ sock, message }) {
     const alvoOriginal = obterMencao(message)
-    const alvo = await resolverAlvoRelacionamento(sock, message, alvoOriginal)
+    const alvo = await resolverMencao(sock, message, alvoOriginal)
 
     if (!alvo) {
       return sock.sendMessage(message.key.remoteJid, {
@@ -814,7 +1093,7 @@ export const relacionamentoCommands = [
 
     const textoPedido =
       `💍 *PEDIDO DE CASAMENTO!*\n\n` +
-      `💘 @${numeroSeguroRelacionamento(remetente)} está pedindo @${numeroSeguroRelacionamento(alvo)} em casamento!\n\n` +
+      `💘 @${numero(remetente)} está pedindo @${numero(alvo)} em casamento!\n\n` +
       `💒 Responda esta mensagem com *!sim* para aceitar\n` +
       `❌ Responda com *!não* para recusar\n\n` +
       `❤️ Será que vem casamento por aí? 👀`
@@ -898,8 +1177,7 @@ export const relacionamentoCommands = [
     aliases: ['beijo'],
 
     async execute({ sock, message, reply }) {
-      const alvoOriginal = obterMencao(message)
-      const alvo = await resolverAlvoRelacionamento(sock, message, alvoOriginal)
+      const alvo = obterMencao(message)
 
       if (!alvo) {
         return reply('💋 Marque alguém!\n\nExemplo: !beijar @pessoa')
@@ -910,7 +1188,7 @@ export const relacionamentoCommands = [
       await enviarMidia({
         sock,
         message,
-        caption: `💋 @${numeroSeguroRelacionamento(remetente)} deu um beijo em @${numeroSeguroRelacionamento(alvo)}! 😘`,
+        caption: `💋 @${numero(remetente)} deu um beijo em @${numero(alvo)}! 😘`,
         mentions: [remetente, alvo],
         nomeGif: 'beijar',
       })
@@ -922,8 +1200,7 @@ export const relacionamentoCommands = [
     aliases: ['abracar', 'abraço', 'abraco'],
 
     async execute({ sock, message, reply }) {
-      const alvoOriginal = obterMencao(message)
-      const alvo = await resolverAlvoRelacionamento(sock, message, alvoOriginal)
+      const alvo = obterMencao(message)
 
       if (!alvo) {
         return reply('🤗 Marque alguém!\n\nExemplo: !abraçar @pessoa')
@@ -934,7 +1211,7 @@ export const relacionamentoCommands = [
       await enviarMidia({
         sock,
         message,
-        caption: `🤗 @${numeroSeguroRelacionamento(remetente)} deu um abraço em @${numeroSeguroRelacionamento(alvo)}! ❤️`,
+        caption: `🤗 @${numero(remetente)} deu um abraço em @${numero(alvo)}! ❤️`,
         mentions: [remetente, alvo],
         nomeGif: 'abraçar',
       })

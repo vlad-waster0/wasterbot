@@ -204,12 +204,6 @@ const categorias = [
     ],
   },
   {
-    titulo: `💎 *𝚙𝚛𝚎𝚖𝚒𝚞𝚖*`,
-    comandos: [
-      'menupremium',
-    ],
-  },
-  {
     titulo: `👑 *𝚍𝚘𝚗𝚘*`,
     comandos: [
       'menudono',
@@ -396,72 +390,109 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
     ].join('\n')
   }
 
+  if (tipo === 'adm') {
+    return [
+      '╭━━━━━━「 🛡️ ADMIN 」━━━━━━╮',
+      '',
+      '🪙 *GERENCIAMENTO DE GOLD*',
+      `▸ ${p}addgold @usuário quantidade`,
+      `▸ ${p}tirargold @usuário quantidade`,
+      `▸ ${p}setgold @usuário quantidade`,
+      `▸ ${p}loja`,
+      `▸ ${p}ongolddiario`,
+      `▸ ${p}offgolddiario`,
+      '',
+      '👥 *MEMBROS*',
+      `▸ ${p}expulsar @usuário`,
+      `▸ ${p}adicionar 5511999999999`,
+      `▸ ${p}promover @usuário`,
+      `▸ ${p}rebaixar @usuário`,
+      '',
+      '⚠️ *ADVERTÊNCIAS*',
+      `▸ ${p}advertir @usuário motivo`,
+      `▸ ${p}advertencias @usuário`,
+      `▸ ${p}removeradvertencia @usuário`,
+      '',
+      '🔇 *CONTROLE DE CHAT*',
+      `▸ ${p}mute @usuário`,
+      `▸ ${p}desmute @usuário`,
+      `▸ ${p}lista_negra @usuário`,
+      `▸ ${p}remover_lista_negra @usuário`,
+      `▸ ${p}mencionar`,
+      `▸ ${p}reportar`,
+      `▸ ${p}removerreportar`,
+      `▸ ${p}todos`,
+      '',
+      '⚙️ *CONFIGURAÇÕES DO GRUPO*',
+      `▸ ${p}configurar`,
+      `▸ ${p}horariogrupo`,
+      `▸ ${p}cancelarhorario`,
+      `▸ ${p}fechargrupo`,
+      `▸ ${p}abrirgrupo`,
+      `▸ ${p}mensagemauto`,
+      `▸ ${p}bemvindo`,
+      `▸ ${p}editarregras <novas regras>`,
+      `▸ ${p}ativarbemvindo`,
+      `▸ ${p}desativarbemvindo`,
+      '',
+      '⚠️ *IMPORTANTE*',
+      'Os comandos de administração exigem que o usuário',
+      'seja administrador do grupo e, quando necessário,',
+      'que o bot também seja administrador.',
+      '',
+      '╰━━━━━━━━━━━━━━━━━━━━━━╯'
+    ].join('\n')
+  }
+
   const secoes = {
     adm: [
-      ['🛡️ ADMINISTRAÇÃO', [
-        'expulsar',
-        'adicionar',
-        'lista_negra',
-        'remover_lista_negra',
-        'mute',
-        'desmute',
-        'promover',
-        'rebaixar',
-        'advertir',
-        'advertencias',
-        'removeradvertencia',
-        'bemvindo',
-        'antilink',
-        'antipalavra',
-        'mencionar',
-        'reportar',
-        'removerreport',
-        'todos',
-      ]],
       ['🪙 GERENCIAMENTO DE GOLD', [
         'addgold @usuário quantidade',
         'tirargold @usuário quantidade',
-        'setgold',
+        'setgold @usuário quantidade',
         'loja',
         'ongolddiario',
         'offgolddiario',
       ]],
-      ['⚙️ CONFIGURAÇÕES', [
+      ['👥 MEMBROS', [
+        'expulsar @usuário',
+        'adicionar 5511999999999',
+        'promover @usuário',
+        'rebaixar @usuário',
+      ]],
+      ['⚠️ ADVERTÊNCIAS', [
+        'advertir @usuário motivo',
+        'advertencias @usuário',
+        'removeradvertencia @usuário',
+      ]],
+      ['🔇 CONTROLE DE CHAT', [
+        'mute @usuário',
+        'desmute @usuário',
+        'lista_negra @usuário',
+        'remover_lista_negra @usuário',
+        'mencionar',
+        'reportar',
+        'removerreportar',
+        'todos',
+      ]],
+      ['⚙️ CONFIGURAÇÕES DO GRUPO', [
+        'configurar',
         'horariogrupo',
         'cancelarhorario',
-        'editarregras',
+        'fechargrupo',
+        'abrirgrupo',
+        'mensagemauto',
+        'bemvindo',
+        'editarregras <novas regras>',
+        'ativarbemvindo',
+        'desativarbemvindo',
+        'antilink',
+        'antipalavra',
       ]],
     ],
-
-    premium: [
-[
-'╭━━━━━「 💎 PREMIUM 💎 」━━━━━╮',
-[
-'👑 *RECURSOS PREMIUM*',
-'',
-'🤖 *PERSONALIZAÇÃO DO BOT*',
-'▸ !alterarnome <novo nome>',
-'▸ !alterarfoto (responda uma foto)',
-'',
-'🪙 *RECURSOS GOLD*',
-'▸ !menugold',
-'',
-'✨ *RECURSOS EXCLUSIVOS*',
-'▸ !𝚛𝚊𝚗𝚔𝚒𝚗𝚐',
-'▸ !𝚕𝚎𝚟𝚎𝚕',
-'',
-'✨ Usuário Premium possui acesso aos',
-'recursos Premium do Waster Bot.',
-'',
-'╰━━━━━━━━━━━━━━━━━━━━━━━━╯'
-]
-]
-],
-
+    premium: [],
     dono: [
       ['👑 ADMINISTRAÇÃO DO BOT', [
-        'darpremium @usuário',
-        'removerpremium @usuário',
       ]],
       ['👑 PERMISSÕES', [
         'dono2 @ADM',
@@ -520,19 +551,14 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
     ],
   }
 
-  
-
-const menuSalvo = personalizado?.menusPersonalizados?.[tipo]
-  if (menuSalvo) {
-    return menuSalvo
-  }
+  const blocos = secoes[tipo] || []
 
   return [
     visual.topo,
     `${visual.emoji} ${personalizado.botName || visual.titulo} ${visual.emoji}`,
     visual.topo2,
     '',
-    ...secoes[tipo].flatMap(([titulo, comandos]) => [secao(titulo, comandos), '']),
+    ...blocos.flatMap(([titulo, comandos]) => [secao(titulo, comandos), '']),
     visual.final,
   ].join('\n')
 }
@@ -542,13 +568,8 @@ export async function formatarMenuPrivado(texto, groupJid) {
 
   if (groupJid?.endsWith('@g.us')) {
     const db = await getDatabase()
-
-    const fonteGrupo =
-      db.data.groups?.[groupJid]?.menu?.fonte ||
-      db.data.settings?.fonte ||
-      'normal'
-
-    fonte = fonteGrupo
+    const personalizado = db.data.groups[groupJid]?.menu || {}
+    fonte = personalizado.fonte || 'normal'
   }
 
   return aplicarFonteMenu(texto, fonte)
@@ -572,7 +593,7 @@ export const menuCommand = {
 
   async execute({ reply, message, sock }) {
     const p = config.prefix
-  const nome = message.pushName || 'usuário';
+    const nome = message.pushName || 'usuário'
 
     const hora = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
@@ -591,7 +612,8 @@ export const menuCommand = {
       ? obterEstilo(db, groupJid)
       : 1
 
-const menuPersonalizado = personalizado?.menusPersonalizados?.principal
+    const menuPersonalizado = personalizado?.menusPersonalizados?.[`menu${estilo}`]
+
     const textoBase = menuPersonalizado
       ? menuPersonalizado
       : montarMenu(
@@ -625,33 +647,8 @@ const menuPersonalizado = personalizado?.menusPersonalizados?.principal
         console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
       }
     }
-let menu = menuPersonalizado || '';
 
-const nomeUsuario = message.pushName || sender.split('@')[0];
-
-menu = menu
-  .replace(/Tiago/g, nomeUsuario)
-  .replace(/[0-9]{2}:[0-9]{2}/g, new Date().toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit'
-  }));
-
-if (menuPersonalizado) {
-  let menu = menuPersonalizado;
-
-  const nomeUsuario = message.pushName || 'usuário';
-
-  menu = menu
-    .replace(/Tiago/g, nomeUsuario)
-    .replace(/[0-9]{2}:[0-9]{2}/g, new Date().toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }));
-
-  return reply(menu);
-}
-
-return reply(texto);
+    await reply(texto)
   },
 }
 
@@ -705,8 +702,9 @@ export const menuoriginalCommand = {
 
     db.data.groups[groupJid] ||= {}
     db.data.groups[groupJid].menu ||= {}
-delete db.data.groups[groupJid].menu.menusPersonalizados   
- await salvarEstilo(groupJid, 1)
+    delete db.data.groups[groupJid].menu.menusPersonalizados
+
+    await salvarEstilo(groupJid, 1)
     await db.write()
 
     return reply(
@@ -838,15 +836,10 @@ export const editarEmojiCommand = {
     // Salva somente neste grupo.
     // O estilo escolhido continua separado em menu.estilo.
     const estiloAtual = obterEstilo(db, groupJid)
-const conteudoLimpo = conteudo
-  .replace(/🕒.*$/gim, '')
-  .replace(/⏰.*$/gim, '')
-  .replace(/são\s+\d{1,2}:\d{2}/gim, '')
-  .trim()
 
-db.data.groups[groupJid].menu.menusPersonalizados[tipo] = conteudoLimpo
+    db.data.groups[groupJid].menu.menusPersonalizados[`menu${estiloAtual}`] = conteudo
 
-await db.write()
+    await db.write()
 
     return reply(
       `✅ *MENU EDITADO E SALVO!*\n\n` +
@@ -892,7 +885,7 @@ async function salvarMenuPersonalizado(tipo, reply, message) {
   db.data.groups[groupJid].menu ||= {}
   db.data.groups[groupJid].menu.menusPersonalizados ||= {}
 
-db.data.groups[groupJid].menu.menusPersonalizados[tipo] = conteudo
+  db.data.groups[groupJid].menu.menusPersonalizados[tipo] = conteudo
 
   await db.write()
 
@@ -908,17 +901,6 @@ export const editarMenuAdmCommand = {
     return salvarMenuPersonalizado('adm', reply, message)
   },
 }
-
-
-export const editarMenuPremiumCommand = {
-  name: 'editarmenupremium',
-  aliases: [],
-  description: 'Edita menu premium.',
-  async execute({ reply, message }) {
-    return salvarMenuPersonalizado('premium', reply, message)
-  },
-}
-
 
 export const editarMenuDonoCommand = {
   name: 'editarmenudono',

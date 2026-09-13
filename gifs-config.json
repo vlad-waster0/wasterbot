@@ -1,0 +1,82 @@
+{
+  "abrao": {
+    "arquivo": "data/gifs/abrao.jpg",
+    "tipo": "image"
+  },
+  "chute": {
+    "arquivo": "data/gifs/chute.mp4",
+    "tipo": "video"
+  },
+  "beijo": {
+    "arquivo": "data/gifs/beijo.mp4",
+    "tipo": "video"
+  },
+  "abraço": {
+    "arquivo": "data/gifs/abraço.mp4",
+    "tipo": "video"
+  },
+  "carinho": {
+    "arquivo": "data/gifs/carinho.mp4",
+    "tipo": "video"
+  },
+  "mentirosa": {
+    "arquivo": "data/gifs/mentirosa.jpg",
+    "tipo": "image"
+  },
+  "mentiroso": {
+    "arquivo": "data/gifs/mentiroso.jpg",
+    "tipo": "image"
+  },
+  "feio": {
+    "arquivo": "data/gifs/feio.jpg",
+    "tipo": "image"
+  },
+  "feia": {
+    "arquivo": "data/gifs/feia.jpg",
+    "tipo": "image"
+  },
+  "morder": {
+    "arquivo": "data/gifs/morder.mp4",
+    "tipo": "video"
+  },
+  "gay": {
+    "arquivo": "data/gifs/gay.jpg",
+    "tipo": "image"
+  },
+  "corno": {
+    "arquivo": "data/gifs/corno.jpg",
+    "tipo": "image"
+  },
+  "corna": {
+    "arquivo": "data/gifs/corna.jpg",
+    "tipo": "image"
+  },
+  "tapa": {
+    "arquivo": "data/gifs/tapa.mp4",
+    "tipo": "video"
+  },
+  "travesseirada": {
+    "arquivo": "data/gifs/travesseirada.mp4",
+    "tipo": "video"
+  },
+  "casar": {
+    "arquivo": "data/gifs/casar.jpg",
+    "tipo": "image"
+  },
+  "calvo": {
+    "arquivo": "data/gifs/calvo.jpg",
+    "tipo": "image"
+  },
+  "linda": {
+    "arquivo": "data/gifs/linda.jpg",
+    "tipo": "image"
+  },
+  "lindo": {
+    "arquivo": "data/gifs/lindo.jpg",
+    "tipo": "image"
+  },
+  "pedido_casamento": {
+    "arquivo": "data/gifs/pedido_casamento.jpg",
+    "tipo": "image"
+  }
+}
