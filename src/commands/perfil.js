@@ -27,6 +27,7 @@ export const perfilCommands = [
 
       const db = await getDatabase()
       const usuario = db.data.users[alvo] || {}
+      const relacionamento = db.data.relationships?.[alvo] || {}
 
       let foto = null
 
@@ -53,7 +54,7 @@ export const perfilCommands = [
 ╰━━━━━━━━━━━━━━━━━━━━╯
 
 ❤️ *RELACIONAMENTO*
-┃ Status: ${usuario.relacionamento || 'Solteiro(a)'}`
+┃ Status: ${relacionamento.status === 'casado' ? `Casado(a) com @${numero(relacionamento.parceiro)}` : relacionamento.status === 'namorando' ? `Namorando com @${numero(relacionamento.parceiro)}` : 'Solteiro(a)'}`
 
       if (foto) {
         try {
@@ -62,7 +63,7 @@ export const perfilCommands = [
             {
               image: { url: foto },
               caption: texto,
-              mentions: [alvo],
+              mentions: [alvo, ...(relacionamento.parceiro ? [relacionamento.parceiro] : [])],
             },
             { quoted: message }
           )
@@ -76,7 +77,7 @@ export const perfilCommands = [
         message.key.remoteJid,
         {
           text: texto,
-          mentions: [alvo],
+          mentions: [alvo, ...(relacionamento.parceiro ? [relacionamento.parceiro] : [])],
         },
         { quoted: message }
       )
