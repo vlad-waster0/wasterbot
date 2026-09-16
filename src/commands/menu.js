@@ -269,6 +269,21 @@ export function montarMenu(estilo, personalizado, nome, hora, p) {
   const site2 = personalizado?.site2 || 'lojawaster.shop'
   const emoji = personalizado?.emojisMenu?.[estilo] || visual.emoji
 
+  const horaAtual = Number(
+    new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    })
+  )
+
+  const saudacao =
+    horaAtual >= 5 && horaAtual < 12
+      ? 'Bom dia'
+      : horaAtual >= 12 && horaAtual < 18
+        ? 'Boa tarde'
+        : 'Boa noite'
+
   const partes = []
 
   partes.push(visual.topo)
@@ -277,7 +292,7 @@ export function montarMenu(estilo, personalizado, nome, hora, p) {
   partes.push(`🌐 Site: ${site1}`)
   partes.push(`🌐 Site: ${site2}`)
   partes.push('')
-  partes.push(`- 🌙 Boa noite ${nome}, são ${hora}`)
+  partes.push(`- 🌙 ${saudacao} ${nome}, são ${hora}`)
   partes.push('')
   partes.push(linha)
 
@@ -591,9 +606,9 @@ export const menuCommand = {
 
   description: 'Exibe o menu principal.',
 
-  async execute({ reply, message, sock }) {
+  async execute({ reply, message, sock, sender }) {
     const p = config.prefix
-    const nome = message.pushName || 'usuário'
+    const nome = sender ? `@${String(sender).split('@')[0]}` : (message.pushName || 'usuário')
 
     const hora = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
@@ -619,19 +634,31 @@ export const menuCommand = {
       : montarMenu(
           estilo,
           personalizado,
-          'usuário',
+          nome,
           hora,
           p
         )
 
     if (menuPersonalizado) {
-      textoBase = textoBase
-        .replace(/- 🌙 Boa noite .*?, são \d{2}:\d{2}/g, `- 🌙 Boa noite usuário, são ${hora}`)
-        .replace(/- 🌙 Bom dia .*?, são \d{2}:\d{2}/g, `- 🌙 Bom dia usuário, são ${hora}`)
-        .replace(/- 🌙 Boa tarde .*?, são \d{2}:\d{2}/g, `- 🌙 Boa tarde usuário, são ${hora}`)
-        .replace(/- 🌙 Boa noite .*?, são \d{1,2}:\d{2}/g, `- 🌙 Boa noite usuário, são ${hora}`)
-        .replace(/- 🌙 Bom dia .*?, são \d{1,2}:\d{2}/g, `- 🌙 Bom dia usuário, são ${hora}`)
-        .replace(/- 🌙 Boa tarde .*?, são \d{1,2}:\d{2}/g, `- 🌙 Boa tarde usuário, são ${hora}`)
+      const horaAtual = Number(
+        new Date().toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'America/Sao_Paulo',
+        })
+      )
+
+      const saudacaoAtual =
+        horaAtual >= 5 && horaAtual < 12
+          ? 'Bom dia'
+          : horaAtual >= 12 && horaAtual < 18
+            ? 'Boa tarde'
+            : 'Boa noite'
+
+      textoBase = textoBase.replace(
+        /- 🌙 (?:Bom dia|Boa tarde|Boa noite) .*?, são \d{1,2}:\d{2}/g,
+        `- 🌙 ${saudacaoAtual} ${nome}, são ${hora}`
+      )
     }
 
     const texto = aplicarFonteMenu(
@@ -647,6 +674,7 @@ export const menuCommand = {
         {
           image: foto,
           caption: texto,
+          mentions: sender ? [sender] : [],
         },
         { quoted: message }
       )
@@ -829,6 +857,27 @@ async function salvarMenuPersonalizado(tipo, reply, message) {
   return reply(`✅ MENU ${tipo.toUpperCase()} EDITADO E SALVO!`)
 }
 
+
+export const editarMenuCommand = {
+  name: 'editarmenu',
+  aliases: [],
+  description: 'Edita o menu principal.',
+  async execute({ reply, sender, sock, message }) {
+    const groupJid = message?.key?.remoteJid
+
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    const { isGroupAdmin } = await import('./admin.js')
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Apenas administradores podem editar o menu.')
+    }
+
+    return salvarMenuPersonalizado('menu1', reply, message)
+  },
+}
 
 export const editarMenuAdmCommand = {
   name: 'editarmenuadm',

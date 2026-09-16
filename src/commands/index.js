@@ -1,4 +1,4 @@
-import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarMenuAdmCommand, editarMenuDonoCommand } from './menu.js'
+import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, editarMenuCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarMenuAdmCommand, editarMenuDonoCommand } from './menu.js'
 import { funCommands } from './fun.js'
 import { mediaCommands } from './media.js'
 import { musicCommands } from './music.js'
@@ -88,6 +88,7 @@ export const commands = [
   menu5Command,
   menu6Command,
   menuoriginalCommand,
+  editarMenuCommand,
   mudarMenu1Command,
   mudarMenu2Command,
   mudarMenu3Command,
