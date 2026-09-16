@@ -1,11 +1,11 @@
-import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarEmojiCommand, editarMenuAdmCommand, editarMenuDonoCommand } from './menu.js'
+import { menuCommand, aluguelBotCommand, menu1Command, menu2Command, menu3Command, menu4Command, menu5Command, menu6Command, menuoriginalCommand, mudarMenu1Command, mudarMenu2Command, mudarMenu3Command, mudarMenu4Command, mudarMenu5Command, mudarMenu6Command, editarMenuAdmCommand, editarMenuDonoCommand } from './menu.js'
 import { funCommands } from './fun.js'
 import { mediaCommands } from './media.js'
 import { musicCommands } from './music.js'
 import { groupCommands, addCommand, muteCommand, unmuteCommand, reportCommand, removeReportCommand } from "./groups.js"
 import { groupSettingsCommands } from './groups.js'
 import { ativarSaidaCommand, desativarSaidaCommand } from './groups.js'
-import { adminMenuCommand, ativarGoldDiarioCommand, desativarGoldDiarioCommand, afkCommand, afkMotivoCommand, desativarAfkCommand } from './admin.js'
+import { adminMenuCommand, ativarGoldDiarioCommand, desativarGoldDiarioCommand, afkCommand, afkMotivoCommand, desativarAfkCommand, ativarMensagemAutoCommand, desativarMensagemAutoCommand } from './admin.js'
 import { goldCommands } from './gold.js'
 import { warningCommands } from './warnings.js'
 import { blacklistCommands } from './blacklist.js'
@@ -79,6 +79,8 @@ export const commands = [
   afkCommand,
   afkMotivoCommand,
   desativarAfkCommand,
+  ativarMensagemAutoCommand,
+  desativarMensagemAutoCommand,
   menu1Command,
   menu2Command,
   menu3Command,
@@ -92,7 +94,6 @@ export const commands = [
   mudarMenu4Command,
   mudarMenu5Command,
   mudarMenu6Command,
-  editarEmojiCommand,
   editarMenuAdmCommand,
   editarMenuDonoCommand
 

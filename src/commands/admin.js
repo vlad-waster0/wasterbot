@@ -338,6 +338,52 @@ export async function verificarAfk(sock, message, reply) {
   return true
 }
 
+export const ativarMensagemAutoCommand = {
+  name: 'ativarmensagemauto',
+  aliases: ['mensagemautoon'],
+  description: 'Ativa as mensagens automáticas do bot.',
+  async execute({ reply, sender, sock, message }) {
+    const groupJid = message?.key?.remoteJid
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Apenas administradores podem usar este comando.')
+    }
+
+    const db = await getDatabase()
+    db.data.groups[groupJid] ||= {}
+    db.data.groups[groupJid].mensagemAutoBot = true
+    await db.write()
+
+    return reply('✅ Mensagens automáticas do bot ativadas neste grupo.')
+  },
+}
+
+export const desativarMensagemAutoCommand = {
+  name: 'desativarmensagemauto',
+  aliases: ['mensagemautooff'],
+  description: 'Desativa as mensagens automáticas do bot.',
+  async execute({ reply, sender, sock, message }) {
+    const groupJid = message?.key?.remoteJid
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Apenas administradores podem usar este comando.')
+    }
+
+    const db = await getDatabase()
+    db.data.groups[groupJid] ||= {}
+    db.data.groups[groupJid].mensagemAutoBot = false
+    await db.write()
+
+    return reply('✅ Mensagens automáticas do bot desativadas neste grupo.')
+  },
+}
+
 export const adminMenuCommand = {
   name: 'menuadm',
   aliases: ['adm', 'admin'],

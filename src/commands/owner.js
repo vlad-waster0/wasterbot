@@ -8,7 +8,7 @@ async function ehDonoPrincipal(jid) {
   return config.ownerNumbers.includes(jid.split('@')[0])
 }
 
-async function ehDonoBot(jid) {
+export async function ehDonoBot(jid) {
   if (await ehDonoPrincipal(jid)) return true
 
   const db = await getDatabase()
@@ -82,105 +82,6 @@ A pessoa agora pode utilizar as funções de dono do bot.
 👑 Você continua sendo o *dono principal* do bot.`
   )
 }
-
-async function configurarMenu({ reply, sender, args, message }) {
-  if (!(await ehPremiumOuDono(sender))) {
-    return reply(
-      '❌ Apenas o dono ou usuários Premium podem personalizar o menu.'
-    )
-  }
-
-  const groupJid = message?.key?.remoteJid
-
-  if (!groupJid?.endsWith('@g.us')) {
-    return reply('❌ A personalização do menu só pode ser feita dentro de um grupo.')
-  }
-
-  const db = await getDatabase()
-  db.data.groups[groupJid] ||= {}
-  db.data.groups[groupJid].menu ||= {}
-  const menu = db.data.groups[groupJid].menu
-  const p = config.prefix
-
-  const opcao = args.shift()?.toLowerCase()
-
-  if (!opcao) {
-    return reply(
-      `⚙️ *PERSONALIZAÇÃO DO MENU*
-
-Use:
-
-${config.prefix}personalizar site texto
-${config.prefix}personalizar site texto
-${config.prefix}personalizar emoji texto
- ▸ ${p}personalizar siteemoji emoji
- ▸ ${p}personalizar siteemoji emoji
-
-${config.prefix}personalizar remover site
-${config.prefix}personalizar remover site
-
-Exemplo:
-${config.prefix}personalizar site Instagram: @seuperfil`
-    )
-  }
-
-  if (opcao === 'siteemoji' || opcao === 'siteemoji') {
-    const valor = args.join(' ').trim()
-    if (!valor) {
-      return reply(`❌ Informe o emoji. Exemplo: ${p}personalizar ${opcao} 🔥`)
-    }
-
-    if (opcao === 'siteemoji') menu.emojiSite = valor
-    if (opcao === 'siteemoji') menu.emojiSite = valor
-
-    await db.write()
-    return reply(`✅ Emoji de ${opcao === 'siteemoji' ? 'site' : 'site'} salvo neste grupo.`)
-  }
-
-  if (opcao === 'remover') {
-    const campo = args.shift()?.toLowerCase()
-
-    if (!['site'].includes(campo)) {
-      return reply('❌ Campo inválido. Use: site.')
-    }
-
-    menu[campo] = ''
-
-    await db.write()
-
-    return reply(
-      `✅ *ALTERAÇÃO REALIZADA*
-
-O campo *${campo}* foi removido do menu.`
-    )
-  }
-
-  if (!['site', 'emoji'].includes(opcao)) {
-    return reply(
-      '❌ Opção inválida. Use: site, emoji ou remover.'
-    )
-  }
-
-  const texto = args.join(' ').trim()
-
-  if (!texto) {
-    return reply('❌ Informe o novo texto.')
-  }
-
-  menu[opcao] = texto
-
-  await db.write()
-
-  return reply(
-    `✅ *MENU ATUALIZADO*
-
-Campo: *${opcao}*
-
-Novo conteúdo:
-${texto}`
-  )
-}
-
 
 const alterarNomeCommand = {
   name: 'alterarnome',
@@ -438,16 +339,6 @@ ${novoPrefixo}menu`)
         ...data,
         nivel: 'Dono 3',
       })
-    },
-  },
-
-  {
-    name: 'menupersonalizar',
-    aliases: ['configmenu', 'personalizar'],
-    description: 'Personaliza o menu principal.',
-
-    async execute(data) {
-      return configurarMenu(data)
     },
   },
 
@@ -755,11 +646,10 @@ ${novoPrefixo}menu`)
       const p = config.prefix
 const db = await getDatabase()
 
-const menuDonoSalvo =
-  db.data.groups[groupJid]?.menu?.menusPersonalizados?.dono
-const textoMenu = menuDonoSalvo || `
-👑 *ADMINISTRAÇÃO DO BOT*
-👑 *PERMISSÕES DE ${nomeDonoMenu}*
+const textoMenu = `
+👑 *ADMINISTRAÇÃO DO DONO*
+
+👑 *PERMISSÕES DE DONO*
 ▸ ${p}dono2 @ADM
 ▸ ${p}dono3 @ADM
 
@@ -767,10 +657,13 @@ const textoMenu = menuDonoSalvo || `
 ▸ ${p}patenteff @pessoa
 ▸ ${p}addpatenteff nome da patente (respondendo à imagem)
 ▸ ${p}configpatenteff
+
+✒️*FONTES*
 ▸ ${p}fontbemvindo serif
 ▸ ${p}fontbemvindo normal
 ▸ ${p}fontsaiu serif
 ▸ ${p}fontsaiu normal
+▸ ${p}personalizarfonte nome
 
 ⚙️ *CONFIGURAÇÕES DO BOT*
 ▸ ${p}alterarprefixo novo
@@ -784,20 +677,16 @@ const textoMenu = menuDonoSalvo || `
 ▸ ${p}menu4
 ▸ ${p}menu5
 ▸ ${p}menu6
-▸ ${p}personalizar texto
-▸ ${p}personalizaremoji texto
-▸ ${p}personalizarlinha texto
-▸ ${p}personalizarfonte nome
+▸ ${p}personalizarlinha textol
 ▸ ${p}editarmenu
-▸ ${p}editaremoji
+▸ ${p}editarmenuadm
+▸ ${p}editarmenudono
 ▸ ${p}mudarmenu1
 ▸ ${p}mudarmenu2
 ▸ ${p}mudarmenu3
 ▸ ${p}mudarmenu4
 ▸ ${p}mudarmenu5
 ▸ ${p}mudarmenu6
-▸ ${p}remover texto site1
-▸ ${p}remover texto site2
 
 📁 *GIFS E IMAGENS*
 ▸ ${p}alterargif nome

@@ -373,6 +373,9 @@ export function aplicarEstiloPrivado(texto, estilo) {
 
 
 export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
+  const menuPersonalizado = personalizado?.menusPersonalizados?.[tipo]
+  if (menuPersonalizado) return menuPersonalizado
+
   const visual = estilos[Number(estilo)] || estilos[1]
 
   const secao = (titulo, comandos) => {
@@ -432,7 +435,8 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
       `▸ ${p}cancelarhorario`,
       `▸ ${p}fechargrupo`,
       `▸ ${p}abrirgrupo`,
-      `▸ ${p}mensagemauto`,
+      `▸ ${p}ativarmensagemauto`,
+      `▸ ${p}desativarmensagemauto`,
       `▸ ${p}bemvindo`,
       `▸ ${p}editarregras <novas regras>`,
       `▸ ${p}ativarbemvindo`,
@@ -524,12 +528,6 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
         'menu5',
         'menu6',
         'menuoriginal',
-        'personalizar texto',
-        'personalizar site texto',
-        'personalizar emoji texto',
-        'personalizar siteemoji emoji',
-        'personalizar remover site',
-        'editaremoji',
         'editarmenu',
         'mudarmenu1 linha',
         'mudarmenu2 linha',
@@ -616,15 +614,25 @@ export const menuCommand = {
 
     const menuPersonalizado = personalizado?.menusPersonalizados?.[`menu${estilo}`]
 
-    const textoBase = menuPersonalizado
+    let textoBase = menuPersonalizado
       ? menuPersonalizado
       : montarMenu(
           estilo,
           personalizado,
-          nome,
+          'usuário',
           hora,
           p
         )
+
+    if (menuPersonalizado) {
+      textoBase = textoBase
+        .replace(/- 🌙 Boa noite .*?, são \d{2}:\d{2}/g, `- 🌙 Boa noite usuário, são ${hora}`)
+        .replace(/- 🌙 Bom dia .*?, são \d{2}:\d{2}/g, `- 🌙 Bom dia usuário, são ${hora}`)
+        .replace(/- 🌙 Boa tarde .*?, são \d{2}:\d{2}/g, `- 🌙 Boa tarde usuário, são ${hora}`)
+        .replace(/- 🌙 Boa noite .*?, são \d{1,2}:\d{2}/g, `- 🌙 Boa noite usuário, são ${hora}`)
+        .replace(/- 🌙 Bom dia .*?, são \d{1,2}:\d{2}/g, `- 🌙 Bom dia usuário, são ${hora}`)
+        .replace(/- 🌙 Boa tarde .*?, são \d{1,2}:\d{2}/g, `- 🌙 Boa tarde usuário, são ${hora}`)
+    }
 
     const texto = aplicarFonteMenu(
       textoBase,
@@ -783,76 +791,6 @@ export const mudarMenu4Command = criarComandoLinha(4)
 export const mudarMenu5Command = criarComandoLinha(5)
 export const mudarMenu6Command = criarComandoLinha(6)
 
-export const editarEmojiCommand = {
-  name: 'editaremoji',
-  aliases: ['editarmenu', 'salvarmenu'],
-  description: 'Salva uma versão editada do menu respondendo à mensagem.',
-  async execute({ reply, message }) {
-    const groupJid = message?.key?.remoteJid
-
-    if (!groupJid?.endsWith('@g.us')) {
-      return reply('❌ Este comando só pode ser usado em grupos.')
-    }
-
-    const contexto =
-      message?.message?.extendedTextMessage?.contextInfo
-
-    const citado = contexto?.quotedMessage
-
-    if (!citado) {
-      return reply(
-        `❌ Responda à mensagem do menu que deseja editar.\n\n` +
-        `Exemplo:\n` +
-        `${config.prefix}editarmenu`
-      )
-    }
-
-    const texto =
-      citado?.conversation ||
-      citado?.extendedTextMessage?.text ||
-      citado?.imageMessage?.caption ||
-      citado?.videoMessage?.caption ||
-      ''
-
-    const conteudo = String(texto || '').trim()
-
-    if (!conteudo) {
-      return reply(
-        '❌ Não consegui encontrar o texto do menu na mensagem respondida.'
-      )
-    }
-
-    if (conteudo.length > 15000) {
-      return reply('❌ O menu editado ficou muito grande. Limite: 15000 caracteres.')
-    }
-
-    const db = await getDatabase()
-
-    db.data.groups[groupJid] ||= {}
-    db.data.groups[groupJid].menu ||= {}
-    db.data.groups[groupJid].menu.menusPersonalizados ||= {}
-
-    // Salva somente neste grupo.
-    // O estilo escolhido continua separado em menu.estilo.
-    const estiloAtual = obterEstilo(db, groupJid)
-
-    db.data.groups[groupJid].menu.menusPersonalizados[`menu${estiloAtual}`] = conteudo
-
-    await db.write()
-
-    return reply(
-      `✅ *MENU EDITADO E SALVO!*\n\n` +
-      `📌 Foi salvo somente neste grupo.\n` +
-      `🎨 Emojis, símbolos, linhas e textos foram preservados.\n\n` +
-      `Para voltar ao menu padrão escolhido pelo grupo, use:\n` +
-      `▸ ${config.prefix}menuoriginal`
-    )
-  },
-}
-
-
-
-
 async function salvarMenuPersonalizado(tipo, reply, message) {
   const groupJid = message?.key?.remoteJid
 
@@ -895,8 +833,20 @@ async function salvarMenuPersonalizado(tipo, reply, message) {
 export const editarMenuAdmCommand = {
   name: 'editarmenuadm',
   aliases: [],
-  description: 'Edita menu de administrador.',
-  async execute({ reply, message }) {
+  description: 'Edita o menu de administrador.',
+  async execute({ reply, sender, sock, message }) {
+    const groupJid = message?.key?.remoteJid
+
+    if (!groupJid?.endsWith('@g.us')) {
+      return reply('❌ Este comando só pode ser usado em grupos.')
+    }
+
+    const { isGroupAdmin } = await import('./admin.js')
+
+    if (!(await isGroupAdmin(sock, groupJid, sender, message))) {
+      return reply('❌ Apenas administradores podem editar o Menu ADM.')
+    }
+
     return salvarMenuPersonalizado('adm', reply, message)
   },
 }
@@ -904,8 +854,18 @@ export const editarMenuAdmCommand = {
 export const editarMenuDonoCommand = {
   name: 'editarmenudono',
   aliases: [],
-  description: 'Edita menu dono.',
-  async execute({ reply, message }) {
+  description: 'Edita o menu do dono.',
+  async execute({ reply, sender, message }) {
+    if (!String(sender || '').trim()) {
+      return reply('❌ Não foi possível identificar o dono.')
+    }
+
+    const { ehDonoBot } = await import('./owner.js')
+
+    if (!(await ehDonoBot(sender))) {
+      return reply('❌ Apenas usuários com permissão de dono podem editar o Menu Dono.')
+    }
+
     return salvarMenuPersonalizado('dono', reply, message)
   },
 }

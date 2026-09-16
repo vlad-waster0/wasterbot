@@ -523,6 +523,14 @@ Pode usar o comando normalmente sem marcar o bot. ❤️`)
     }
 
     if (jid?.endsWith('@g.us') && text.trim() && !text.startsWith(prefix)) {
+      const dbAuto = await getDatabase()
+      const mensagemAutoBotAtiva =
+        dbAuto.data.groups[jid]?.mensagemAutoBot === true
+
+      if (!mensagemAutoBotAtiva) {
+        return
+      }
+
       const perguntaBot = text
         .trim()
         .toLowerCase()
