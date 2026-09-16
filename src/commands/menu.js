@@ -34,7 +34,7 @@ const estilos = {
     linha: `━━━━━━━━━━━━━━━━━━━━`,
     emoji: `🦇`,
     titulo: `WASTER BOT`,
-    secao: `✦`,
+    secao: ``,
     final: `╰━━━━━━━━━━━━━━━━━━━━╯`,
   },
 
@@ -402,11 +402,16 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
       `▸ ${p}ongolddiario`,
       `▸ ${p}offgolddiario`,
       '',
+      '😴 *AFK*',
+      `▸ ${p}afk motivo`,
+      `▸ ${p}afkmotivo novo motivo`,
+      `▸ ${p}offafk`,
+      '',
       '👥 *MEMBROS*',
-      `▸ ${p}expulsar @usuário`,
-      `▸ ${p}adicionar 5511999999999`,
-      `▸ ${p}promover @usuário`,
-      `▸ ${p}rebaixar @usuário`,
+      `▸ ${p}ban @usuário`,
+      `▸ ${p}add 5511999999999`,
+      `▸ ${p}adm @usuário`,
+      `▸ ${p}removeradm @usuário`,
       '',
       '⚠️ *ADVERTÊNCIAS*',
       `▸ ${p}advertir @usuário motivo`,
@@ -418,13 +423,11 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
       `▸ ${p}desmute @usuário`,
       `▸ ${p}lista_negra @usuário`,
       `▸ ${p}remover_lista_negra @usuário`,
-      `▸ ${p}mencionar`,
       `▸ ${p}reportar`,
       `▸ ${p}removerreportar`,
       `▸ ${p}todos`,
       '',
       '⚙️ *CONFIGURAÇÕES DO GRUPO*',
-      `▸ ${p}configurar`,
       `▸ ${p}horariogrupo`,
       `▸ ${p}cancelarhorario`,
       `▸ ${p}fechargrupo`,
@@ -443,7 +446,6 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
       '╰━━━━━━━━━━━━━━━━━━━━━━╯'
     ].join('\n')
   }
-
   const secoes = {
     adm: [
       ['🪙 GERENCIAMENTO DE GOLD', [
@@ -455,10 +457,10 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
         'offgolddiario',
       ]],
       ['👥 MEMBROS', [
-        'expulsar @usuário',
-        'adicionar 5511999999999',
-        'promover @usuário',
-        'rebaixar @usuário',
+        'ban @usuário',
+        'add 5511999999999',
+        'adm @usuário',
+        'removeradm @usuário',
       ]],
       ['⚠️ ADVERTÊNCIAS', [
         'advertir @usuário motivo',
@@ -470,13 +472,13 @@ export function montarMenuPrivado(tipo, estilo, p, personalizado = {}) {
         'desmute @usuário',
         'lista_negra @usuário',
         'remover_lista_negra @usuário',
-        'mencionar',
+        'todos',
         'reportar',
         'removerreportar',
         'todos',
       ]],
       ['⚙️ CONFIGURAÇÕES DO GRUPO', [
-        'configurar',
+        'fechargrupo',
         'horariogrupo',
         'cancelarhorario',
         'fechargrupo',
@@ -629,23 +631,20 @@ export const menuCommand = {
       personalizado?.fonte || 'normal'
     )
 
-    if (personalizado.photo) {
-      try {
-        const foto = await readFile(personalizado.photo)
-
-        await sock.sendMessage(
-          message.key.remoteJid,
-          {
-            image: foto,
-            caption: texto,
-          },
-          { quoted: message }
-        )
-
-        return
-      } catch (error) {
-        console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
-      }
+    try {
+      const caminhoFoto = personalizado.photo || 'data/menu.jpg'
+      const foto = await readFile(caminhoFoto)
+      await sock.sendMessage(
+        message.key.remoteJid,
+        {
+          image: foto,
+          caption: texto,
+        },
+        { quoted: message }
+      )
+      return
+    } catch (error) {
+      console.error('ERRO AO ENVIAR FOTO DO MENU:', error)
     }
 
     await reply(texto)

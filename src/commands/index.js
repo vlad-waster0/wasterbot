@@ -5,13 +5,12 @@ import { musicCommands } from './music.js'
 import { groupCommands, addCommand, muteCommand, unmuteCommand, reportCommand, removeReportCommand } from "./groups.js"
 import { groupSettingsCommands } from './groups.js'
 import { ativarSaidaCommand, desativarSaidaCommand } from './groups.js'
-import { adminMenuCommand, ativarGoldDiarioCommand, desativarGoldDiarioCommand } from './admin.js'
+import { adminMenuCommand, ativarGoldDiarioCommand, desativarGoldDiarioCommand, afkCommand, afkMotivoCommand, desativarAfkCommand } from './admin.js'
 import { goldCommands } from './gold.js'
 import { warningCommands } from './warnings.js'
 import { blacklistCommands } from './blacklist.js'
 import { antilinkCommands } from './antilink.js'
 import { antifloodCommands } from './antiflood.js'
-import { mencionarFixCommands } from './mencionar_fix.js'
 import { jogosNovosCommands } from './jogos_novos.js'
 import { antipalavraCommands } from './antipalavra.js'
 import { linkGrupoCommand } from './linkgrupo.js'
@@ -57,7 +56,7 @@ export const commands = [
   linkGrupoCommand,
   ...antilinkCommands,
   ...antifloodCommands,
-  ...mencionarFixCommands,
+  
   ...jogosNovosCommands,
   ...antipalavraCommands,
   ...welcomeCommands,
@@ -77,6 +76,9 @@ export const commands = [
   adminMenuCommand,
   ativarGoldDiarioCommand,
   desativarGoldDiarioCommand,
+  afkCommand,
+  afkMotivoCommand,
+  desativarAfkCommand,
   menu1Command,
   menu2Command,
   menu3Command,
@@ -106,22 +108,3 @@ export const commandMap = new Map(
 )
 
 
-// WASTER_OVERRIDE_MENCIONAR
-try {
-  for (const comando of mencionarFixCommands) {
-    if (commandMap instanceof Map) {
-      commandMap.set(comando.name, comando)
-      for (const alias of comando.aliases || []) {
-        commandMap.set(alias, comando)
-      }
-    } else if (commandMap && typeof commandMap === 'object') {
-      commandMap[comando.name] = comando
-      for (const alias of comando.aliases || []) {
-        commandMap[alias] = comando
-      }
-    }
-  }
-} catch (erroMencionarOverride) {
-  console.error('ERRO OVERRIDE MENCIONAR:', erroMencionarOverride)
-}
-// FIM WASTER_OVERRIDE_MENCIONAR

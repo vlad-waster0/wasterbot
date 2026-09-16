@@ -8,7 +8,7 @@ import { iniciarSaida } from './events/leave.js'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import { config } from './config.js'
-import { isGroupAdmin } from './commands/admin.js'
+import { isGroupAdmin, verificarAfk } from './commands/admin.js'
 import { getDatabase, saveUser, setPrefix } from './database.js'
 import { estaNaListaNegra } from './commands/blacklist.js'
 import { processarRespostaDeJogo } from './commands/jogos_novos.js'
@@ -495,6 +495,14 @@ if (jid?.endsWith('@g.us')) {
 
     const contexto = message.message.extendedTextMessage?.contextInfo
     const mencionados = contexto?.mentionedJid || []
+
+    try {
+      if (await verificarAfk(sock, message, reply)) {
+        return
+      }
+    } catch (error) {
+      console.error('ERRO AO VERIFICAR AFK:', error)
+    }
     const botJid = sock.user?.id || ''
     const botLid = sock.user?.lid || ''
 
@@ -512,6 +520,34 @@ if (jid?.endsWith('@g.us')) {
 
 Por favor, não marque o bot nos comandos.
 Pode usar o comando normalmente sem marcar o bot. ❤️`)
+    }
+
+    if (jid?.endsWith('@g.us') && text.trim() && !text.startsWith(prefix)) {
+      const perguntaBot = text
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+
+      if (/\btem\s+bot\b/.test(perguntaBot)) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        return reply('Oii, tem sim😁')
+      }
+
+      if (/\bbot\s+on\b/.test(perguntaBot)) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        return reply('Opa, estou sim😁')
+      }
+
+      if (/\bcade\s+(o\s+)?bot\b/.test(perguntaBot)) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        return reply('Opa, estou aqui kkk')
+      }
+
+      if (/\bbot\b/.test(perguntaBot)) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        return reply('Opa, me chamou?👀')
+      }
     }
 
     if (text.trim().toLowerCase() === 'prefixo') {

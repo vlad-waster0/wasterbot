@@ -43,8 +43,8 @@ async function requireAdmin({ sock, message, sender, reply }) {
 
 export const groupCommands = [
   {
-    name: 'tagall',
-    aliases: ['mencionar', 'todos', 'mencionartodos'],
+    name: 'todos',
+    aliases: [],
     description: 'Menciona todos os membros.',
 
     async execute({ sock, message, reply, sender }) {
@@ -72,8 +72,8 @@ export const groupCommands = [
   },
 
   {
-    name: 'kick',
-    aliases: ['expulsar', 'remover'],
+    name: 'ban',
+    aliases: ['remover'],
     description: 'Expulsa um membro do grupo.',
 
     async execute({ sock, message, reply, sender }) {
@@ -83,14 +83,14 @@ export const groupCommands = [
       const targets = await mentioned(message, sock)
 
       if (!targets.length) {
-        return reply('❌ Marque o usuário que deseja expulsar.')
+        return reply('❌ Marque o usuário que deseja banir.')
       }
 
       const metadata = await sock.groupMetadata(groupJid)
       const botJid = sock.user?.id?.split(':')[0] + '@s.whatsapp.net'
 
       if (targets.some(target => target === botJid || target === sock.user?.id)) {
-        return reply('❌ Eu não posso expulsar a mim mesmo.')
+        return reply('❌ Eu não posso banir a mim mesmo.')
       }
 
       try {
@@ -102,14 +102,14 @@ export const groupCommands = [
         )
       } catch (error) {
         console.error('ERRO AO EXPULSAR:', error)
-        return reply('❌ Não consegui expulsar o usuário. Verifique se o bot é administrador.')
+        return reply('❌ Não consegui banir o usuário. Verifique se o bot é administrador.')
       }
     },
   },
 
   {
-    name: 'promote',
-    aliases: ['promover'],
+    name: 'adm',
+    aliases: [],
     description: 'Promove um membro a administrador.',
 
     async execute({ sock, message, reply, sender }) {
@@ -119,7 +119,7 @@ export const groupCommands = [
       const targets = await mentioned(message, sock)
 
       if (!targets.length) {
-        return reply('❌ Marque o usuário que deseja promover.')
+        return reply('❌ Marque o usuário que deseja tornar administrador.')
       }
 
       try {
@@ -131,14 +131,14 @@ export const groupCommands = [
         )
       } catch (error) {
         console.error('ERRO AO PROMOVER:', error)
-        return reply('❌ Não consegui promover o usuário. Verifique se o bot é administrador.')
+        return reply('❌ Não consegui tornar administrador o usuário. Verifique se o bot é administrador.')
       }
     },
   },
 
   {
-    name: 'demote',
-    aliases: ['rebaixar'],
+    name: 'removeradm',
+    aliases: [],
     description: 'Remove o administrador de um membro.',
 
     async execute({ sock, message, reply, sender }) {
@@ -148,7 +148,7 @@ export const groupCommands = [
       const targets = await mentioned(message, sock)
 
       if (!targets.length) {
-        return reply('❌ Marque o administrador que deseja rebaixar.')
+        return reply('❌ Marque o administrador que deseja remover.')
       }
 
       try {
@@ -160,15 +160,15 @@ export const groupCommands = [
         )
       } catch (error) {
         console.error('ERRO AO REBAIXAR:', error)
-        return reply('❌ Não consegui rebaixar o usuário. Verifique se o bot é administrador.')
+        return reply('❌ Não consegui remover a administração de o usuário. Verifique se o bot é administrador.')
       }
     },
   },
 ]
 
 export const addCommand = {
-  name: 'adicionar',
-  aliases: ['add'],
+  name: 'add',
+  aliases: [],
   description: 'Adiciona um número ao grupo.',
   async execute({ sock, message, reply, sender, args }) {
     if (!(await requireAdmin({ sock, message, sender, reply }))) return
@@ -177,7 +177,7 @@ export const addCommand = {
     let numero = args[0]?.replace(/\D/g, '')
 
     if (!numero) {
-      return reply('❌ Informe o número. Exemplo: !adicionar 5511999999999')
+      return reply('❌ Informe o número. Exemplo: !add 5511999999999')
     }
 
     if (numero.length < 10) {
@@ -377,18 +377,7 @@ export const removeReportCommand = {
 
 export const groupSettingsCommands = [
   {
-    name: 'configurar',
-    aliases: ['config', 'configuracoes'],
-    description: 'Exibe as configurações disponíveis do grupo.',
-    async execute({ reply, message, sock }) {
-      const groupJid = message.key.remoteJid
-      if (!groupJid?.endsWith('@g.us')) return reply('❌ Este comando só pode ser usado em grupos.')
-      const admin = await isGroupAdmin(sock, groupJid, message.key.participant, message)
-      if (!admin) return reply('❌ Apenas administradores podem usar este comando.')
-      return reply('⚙️ *CONFIGURAÇÕES DO GRUPO*\\n\\n🔒 *CONTROLE DO GRUPO*\\n▸ Fechar grupo\\n▸ Abrir grupo\\n\\n👋 *BOAS-VINDAS*\\n▸ Ativar boas-vindas\\n▸ Desativar boas-vindas\\n\\n🛡️ *PROTEÇÃO*\\n▸ Antilink\\n▸ Antipalavra\\n\\n⏰ *HORÁRIO*\\n▸ Configurar horário\\n▸ Cancelar horário')
-    },
-  },
-  {
+
     name: 'fechargrupo',
     aliases: ['fechar'],
     description: 'Fecha o grupo para membros.',

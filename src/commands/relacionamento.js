@@ -703,7 +703,7 @@ export const relacionamentoCommands = [
         const from = `@${numero(fromReal)}`
         const to = `@${numero(toReal)}`
 
-        return await enviarMidia({
+        const enviou = await enviarMidia({
           sock,
           message,
           caption:
@@ -714,6 +714,23 @@ export const relacionamentoCommands = [
           mentions: [fromReal, toReal],
           nomeGif: 'pedido_casamento',
         })
+
+        if (!enviou) {
+          await sock.sendMessage(
+            message.key.remoteJid,
+            {
+              text:
+                `💒 *CASAMENTO ACEITO!* 💍\n\n` +
+                `🥰 ${to} aceitou o pedido de casamento de ${from}!\n\n` +
+                `💖 Agora vocês estão oficialmente casados!\n\n` +
+                `🎉 Que venha muito amor, carinho e felicidade para o casal! ❤️`,
+              mentions: [fromReal, toReal],
+            },
+            { quoted: message }
+          )
+        }
+
+        return true
       }
 
       const relFromEncontrada = encontrarRelacaoUsuario(db, fromReal)
@@ -758,7 +775,7 @@ export const relacionamentoCommands = [
       const from = `@${numero(fromReal)}`
       const to = `@${numero(toReal)}`
 
-      return await enviarMidia({
+      const enviou = await enviarMidia({
         sock,
         message,
         caption:
@@ -768,6 +785,22 @@ export const relacionamentoCommands = [
         mentions: [fromReal, toReal],
         nomeGif: 'namorar',
       })
+
+      if (!enviou) {
+        await sock.sendMessage(
+          message.key.remoteJid,
+          {
+            text:
+              `❤️ *NAMORO ACEITO!*\n\n` +
+              `🥰 ${to} aceitou o pedido de namoro de ${from}!\n\n` +
+              `💑 Agora vocês estão oficialmente namorando! ❤️`,
+            mentions: [fromReal, toReal],
+          },
+          { quoted: message }
+        )
+      }
+
+      return true
     },
   },
 
